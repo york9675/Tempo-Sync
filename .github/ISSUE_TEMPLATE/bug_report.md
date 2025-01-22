@@ -26,7 +26,7 @@ If applicable, add screenshots to help explain your problem.
 **Device running (please complete the following information):**
  - Device: [e.g. iPhone 14]
  - OS: [e.g. iOS 18.1]
- - Version [e.g. v2.3.1]
+ - Browser: [e.g. Safari]
 
 **Additional context**
 Add any other context about the problem here.
