@@ -14,15 +14,6 @@
   </a>
 </p>
 
-<p align="center">
-  <table>
-    <tr>
-      <td><img src="./Screenshot1.png" alt="Dark" width="250"/></td>
-      <td><img src="./Screenshot2.png" alt="Light" width="250"/></td>
-    </tr>
-  </table>
-</p>
-
 **Tempo Sync** is a simple yet powerful online metronome app designed to help musicians keep time while playing. Whether you're practicing at home or in a band setting, Tempo Sync offers customizable tempo settings, time signatures, and an easy-to-use interface.
 
 ## Features
@@ -35,6 +26,16 @@
 - Theme Toggle: Switch between light and dark modes for a comfortable user experience.
 - Audio Feedback: Hear the beat with different pitches to distinguish the downbeat from other beats.
 - And more!
+
+## Screenshots
+
+### Dark Mode
+
+![Dark Mode](./Screenshot1.png)
+
+### Light Mode
+
+![Light Mode](./Screenshot2.png)
 
 ## How To Use
 
