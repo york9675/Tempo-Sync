@@ -18,8 +18,6 @@
   <table>
     <tr>
       <td><img src="./Screenshot1.png" alt="Dark" width="250"/></td>
-    </tr>
-    <tr>
       <td><img src="./Screenshot2.png" alt="Light" width="250"/></td>
     </tr>
   </table>
