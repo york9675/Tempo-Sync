@@ -204,9 +204,9 @@
 
         <div class="controls">
             <div class="tempo-control">
-                <button id="tempoDown" title="Decrease Tempo (I / ArrowDown)">➖</button>
+                <button id="tempoDown" title="Decrease Tempo (D / ArrowDown)">➖</button>
                 <input type="number" id="bpmInput" class="bpm-input" value="120" min="20" max="300" title="Beats Per Minute" placeholder="BPM">
-                <button id="tempoUp" title="Increase Tempo (D / ArrowUp)">➕</button>
+                <button id="tempoUp" title="Increase Tempo (I / ArrowUp)">➕</button>
             </div>
 
             <input type="range" id="tempoSlider" min="20" max="300" value="120" title="Tempo Slider">
@@ -353,7 +353,6 @@
                 const beatDisplay = document.getElementById('beatDisplay');
                 beatDisplay.textContent = this.currentBeatNumber;
 
-                // Flash effect for first beat
                 if (this.currentBeatNumber === 1) {
                     beatDisplay.classList.add('flash');
                     clearTimeout(this.flashTimeout);
