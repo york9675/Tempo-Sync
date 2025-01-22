@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="./icon.png" type="image/png">
+    <meta content="A simple metronome web app." name="description">
+    <title>Tempo Sync</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        :root {
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --bg: #f9fafb;
+            --container-bg: white;
+            --text: #1f2937;
+            --text-secondary: #6b7280;
+            --border: #e5e7eb;
+            --flash-color: #60a5fa;
+        }
+
+        [data-theme="dark"] {
+            --primary: #60a5fa;
+            --primary-hover: #3b82f6;
+            --bg: #111827;
+            --container-bg: #1f2937;
+            --text: #f9fafb;
+            --text-secondary: #9ca3af;
+            --border: #374151;
+            --flash-color: #93c5fd;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+            background: var(--container-bg);
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: none;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 1.5rem;
+            padding: 0.5rem;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            color: var(--primary);
+        }
+
+        .beat-display {
+            font-size: 6rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            border: 2px dashed var(--primary);
+            border-radius: 1rem;
+            padding: 1rem;
+            cursor: pointer;
+            position: relative;
+            transition: background-color 0.1s;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .beat-display.flash {
+            background-color: var(--flash-color);
+            color: white;
+        }
+
+        .beat-display-hint {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .tempo-control {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .bpm-input {
+            width: 100px;
+            padding: 0.5rem;
+            font-size: 1.2rem;
+            border: 2px solid var(--border);
+            border-radius: 0.5rem;
+            text-align: center;
+            background: var(--container-bg);
+            color: var(--text);
+        }
+
+        .time-sig {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+
+        .time-sig select {
+            padding: 0.5rem;
+            font-size: 1rem;
+            border: 2px solid var(--border);
+            border-radius: 0.5rem;
+            background: var(--container-bg);
+            color: var(--text);
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: var(--primary-hover);
+        }
+
+        #playButton, #tapButton {
+            width: 100%;
+        }
+
+        footer {
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .github-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .github-link:hover {
+            color: var(--primary);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <script data-name="BMC-Widget" data-cfasync="false" src="https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js" data-id="york0524" data-description="Support me on Buy me a coffee!" data-message="Would you consider sponsoring me a few drinks? (～￣▽￣)～" data-color="#5F7FFF" data-position="Right" data-x_margin="18" data-y_margin="18"></script>
+
+        <div class="header-container">
+            <header>
+                <h1>Tempo Sync</h1>
+            </header>
+            <button class="theme-toggle" id="themeToggle">🌓</button>
+        </div>
+
+        <div class="beat-display" id="beatDisplay">1</div>
+        <div class="beat-display-hint">Click or tap here to set tempo</div>
+
+        <div class="controls">
+            <div class="tempo-control">
+                <button id="tempoDown">➖</button>
+                <input type="number" id="bpmInput" class="bpm-input" value="120" min="20" max="300" title="Beats per minute" placeholder="BPM">
+                <button id="tempoUp">➕</button>
+            </div>
+
+            <input type="range" id="tempoSlider" min="20" max="300" value="120" title="Tempo Slider">
+
+            <div class="time-sig">
+                <select id="beatsPerMeasure" title="Beats Per Measure">
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4" selected>4</option>
+                    <option value="6">6</option>
+                    <option value="8">8</option>
+                </select>
+                <span>/</span>
+                <select id="beatUnit" title="Beat Unit">
+                    <option value="4" selected>4</option>
+                    <option value="8">8</option>
+                </select>
+            </div>
+
+            <button id="playButton">▶️ Play</button>
+        </div>
+
+        <footer>
+            <span>&copy; 2025 York Development. Made with ❤️ in Taiwan.</span>
+            <a href="https://github.com/york975/tempo-sync" class="github-link" target="_blank" rel="noopener noreferrer">
+                <svg height="20" width="20" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                GitHub
+            </a>
+        </footer>
+    </div>
+
+    <script>
+        class Metronome {
+            constructor() {
+                this.audioContext = null;
+                this.currentBeatNumber = 1;
+                this.isPlaying = false;
+                this.tempo = 120;
+                this.beatsPerMeasure = 4;
+                this.nextNoteTime = 0;
+                this.timeoutId = null;
+                this.tapTimes = [];
+                this.flashTimeout = null;
+
+                this.setupEventListeners();
+                this.setupThemeToggle();
+            }
+
+            setupEventListeners() {
+                document.getElementById('playButton').addEventListener('click', () => this.togglePlay());
+                document.getElementById('bpmInput').addEventListener('change', (e) => this.updateTempo(e.target.value));
+                document.getElementById('tempoSlider').addEventListener('input', (e) => this.updateTempo(e.target.value));
+                document.getElementById('tempoDown').addEventListener('click', () => this.updateTempo(this.tempo - 1));
+                document.getElementById('tempoUp').addEventListener('click', () => this.updateTempo(this.tempo + 1));
+                document.getElementById('beatsPerMeasure').addEventListener('change', (e) => {
+                    this.beatsPerMeasure = parseInt(e.target.value);
+                    this.currentBeatNumber = 1;
+                });
+                document.getElementById('beatDisplay').addEventListener('click', () => this.tapTempo());
+            }
+
+            setupThemeToggle() {
+                const themeToggle = document.getElementById('themeToggle');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                
+                if (prefersDark) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                }
+
+                themeToggle.addEventListener('click', () => {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                });
+            }
+
+            updateTempo(newTempo) {
+                this.tempo = Math.min(Math.max(parseInt(newTempo), 20), 300);
+                document.getElementById('bpmInput').value = this.tempo;
+                document.getElementById('tempoSlider').value = this.tempo;
+            }
+
+            async togglePlay() {
+                if (!this.audioContext) {
+                    this.audioContext = new AudioContext();
+                }
+
+                if (this.isPlaying) {
+                    this.stop();
+                    document.getElementById('playButton').textContent = '▶️ Play';
+                } else {
+                    this.start();
+                    document.getElementById('playButton').textContent = '⏹️ Stop';
+                }
+            }
+
+            start() {
+                this.isPlaying = true;
+                this.currentBeatNumber = 1;
+                this.nextNoteTime = this.audioContext.currentTime;
+                this.scheduler();
+            }
+
+            stop() {
+                this.isPlaying = false;
+                this.currentBeatNumber = 1;
+                clearTimeout(this.timeoutId);
+                clearTimeout(this.flashTimeout);
+                document.getElementById('beatDisplay').classList.remove('flash');
+                document.getElementById('beatDisplay').textContent = '1';
+            }
+
+            scheduler() {
+                while (this.nextNoteTime < this.audioContext.currentTime + 0.1) {
+                    this.playClick();
+                    this.nextNoteTime += 60.0 / this.tempo;
+                }
+
+                this.timeoutId = setTimeout(() => {
+                    if (this.isPlaying) this.scheduler();
+                }, 25);
+            }
+
+            playClick() {
+                const beatDisplay = document.getElementById('beatDisplay');
+                beatDisplay.textContent = this.currentBeatNumber;
+
+                // Flash effect for first beat
+                if (this.currentBeatNumber === 1) {
+                    beatDisplay.classList.add('flash');
+                    clearTimeout(this.flashTimeout);
+                    this.flashTimeout = setTimeout(() => {
+                        beatDisplay.classList.remove('flash');
+                    }, 100);
+                }
+
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+
+                if (this.currentBeatNumber === 1) {
+                    oscillator.frequency.value = 880;
+                } else {
+                    oscillator.frequency.value = 440;
+                }
+
+                gainNode.gain.value = 1;
+
+                oscillator.start(this.nextNoteTime);
+                oscillator.stop(this.nextNoteTime + 0.1);
+
+                this.currentBeatNumber = this.currentBeatNumber % this.beatsPerMeasure + 1;
+            }
+
+            tapTempo() {
+                const now = Date.now();
+                const beatDisplay = document.getElementById('beatDisplay');
+                
+                beatDisplay.classList.add('flash');
+                setTimeout(() => beatDisplay.classList.remove('flash'), 100);
+
+                this.tapTimes.push(now);
+
+                if (this.tapTimes.length > 1) {
+                    const intervals = this.tapTimes.slice(1).map((t, i) => t - this.tapTimes[i]);
+                    const avgInterval = intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length;
+                    const bpm = Math.round(60000 / avgInterval);
+                    
+                    if (bpm >= 20 && bpm <= 300) {
+                        this.updateTempo(bpm);
+                    }
+                }
+
+                if (this.tapTimes.length > 8) {
+                    this.tapTimes.shift();
+                }
+            }
+        }
+
+        const metronome = new Metronome();
+    </script>
+</body>
+</html>

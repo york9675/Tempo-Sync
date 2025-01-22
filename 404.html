@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found</title>
+    <style>
+        body {
+            background-color: #0078d7;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 50px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 100px;
+            margin: 0;
+        }
+        p {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        .percentage {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        .qr-code-container {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+        .qr-code {
+            width: 150px;
+            height: 150px;
+            margin-right: 20px;
+        }
+        .info {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>:(</h1>
+        <p>There is a problem with your page and the specified page cannot be found.</p>
+        <p>We're just collecting some error info, and we'll redirect you to our home page.</p>
+        <p class="percentage"><span id="progress">0</span>% complete</p>
+        <div class="qr-code-container">
+            <img class="qr-code" src="./qrcode.png" alt="QR Code">
+            <div>
+                <p class="info">For more information about this issue and possible fixes, visit<br> https://github.com/york9675/website</p>
+                <p class="info">If you call a support person, give them this ifo:<br>Stop code: PAGE_NOT_FOUND</p>
+            </div>
+        </div>
+    </div>
+    <script>
+        let progress = 0;
+        const progressText = document.getElementById('progress');
+
+        function updateProgress() {
+            if (progress < 100) {
+                setTimeout(updateProgress, 750);
+                progress += 5;
+                progressText.textContent = progress;
+            } else {
+                window.location.href = './index.html';
+            }
+        }
+        updateProgress();
+    </script>
+</body>
+</html>
