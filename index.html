@@ -192,8 +192,6 @@
 </head>
 <body>
     <div class="container">
-        <script data-name="BMC-Widget" data-cfasync="false" src="https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js" data-id="york0524" data-description="Support me on Buy me a coffee!" data-message="Would you consider sponsoring me a few drinks? (～￣▽￣)～" data-color="#5F7FFF" data-position="Right" data-x_margin="18" data-y_margin="18"></script>
-
         <div class="header-container">
             <header>
                 <h1>Tempo Sync</h1>
@@ -202,13 +200,13 @@
         </div>
 
         <div class="beat-display" id="beatDisplay">1</div>
-        <div class="beat-display-hint">Click or tap here to set tempo</div>
+        <div class="beat-display-hint">Click, tap here, or press 'T' to set tempo</div>
 
         <div class="controls">
             <div class="tempo-control">
-                <button id="tempoDown">➖</button>
+                <button id="tempoDown" title="Decrease Tempo (I / ArrowDown)">➖</button>
                 <input type="number" id="bpmInput" class="bpm-input" value="120" min="20" max="300" title="Beats per minute" placeholder="BPM">
-                <button id="tempoUp">➕</button>
+                <button id="tempoUp" title="Increase Tempo (D / ArrowUp)">➕</button>
             </div>
 
             <input type="range" id="tempoSlider" min="20" max="300" value="120" title="Tempo Slider">
@@ -228,7 +226,7 @@
                 </select>
             </div>
 
-            <button id="playButton">▶️ Play</button>
+            <button id="playButton" title="Start/Stop the metronome (Space)">▶️ Play</button>
         </div>
 
         <footer>
@@ -253,10 +251,12 @@
                 this.nextNoteTime = 0;
                 this.timeoutId = null;
                 this.tapTimes = [];
+                this.tapTimeoutId = null;
                 this.flashTimeout = null;
 
                 this.setupEventListeners();
                 this.setupThemeToggle();
+                this.setupKeyboardShortcuts();
             }
 
             setupEventListeners() {
@@ -275,7 +275,7 @@
             setupThemeToggle() {
                 const themeToggle = document.getElementById('themeToggle');
                 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                
+
                 if (prefersDark) {
                     document.documentElement.setAttribute('data-theme', 'dark');
                 }
@@ -284,6 +284,21 @@
                     const currentTheme = document.documentElement.getAttribute('data-theme');
                     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
                     document.documentElement.setAttribute('data-theme', newTheme);
+                });
+            }
+
+            setupKeyboardShortcuts() {
+                document.addEventListener('keydown', (e) => {
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        this.togglePlay();
+                    } else if (e.code === 'ArrowUp' || e.code === 'KeyI') {
+                        this.updateTempo(this.tempo + 1);
+                    } else if (e.code === 'ArrowDown' || e.code === 'KeyD') {
+                        this.updateTempo(this.tempo - 1);
+                    } else if (e.code === 'KeyT') {
+                        this.tapTempo();
+                    }
                 });
             }
 
@@ -370,7 +385,7 @@
             tapTempo() {
                 const now = Date.now();
                 const beatDisplay = document.getElementById('beatDisplay');
-                
+
                 beatDisplay.classList.add('flash');
                 setTimeout(() => beatDisplay.classList.remove('flash'), 100);
 
@@ -380,7 +395,7 @@
                     const intervals = this.tapTimes.slice(1).map((t, i) => t - this.tapTimes[i]);
                     const avgInterval = intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length;
                     const bpm = Math.round(60000 / avgInterval);
-                    
+
                     if (bpm >= 20 && bpm <= 300) {
                         this.updateTempo(bpm);
                     }
@@ -389,6 +404,11 @@
                 if (this.tapTimes.length > 8) {
                     this.tapTimes.shift();
                 }
+
+                clearTimeout(this.tapTimeoutId);
+                this.tapTimeoutId = setTimeout(() => {
+                    this.tapTimes = [];
+                }, 5000);
             }
         }
 
