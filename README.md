@@ -48,7 +48,7 @@ To run this project locally on your machine:
 1. Clone the repository:
 
 ```bash
-git clone
+git clone https://github.com/york9675/Tempo-Sync.git
 
 cd Tempo-Sync
 ```
