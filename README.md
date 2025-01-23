@@ -31,11 +31,11 @@
 
 ### Dark Mode
 
-![Dark Mode](./Screenshot1.png)
+![Dark Mode](./Dark.png)
 
 ### Light Mode
 
-![Light Mode](./Screenshot2.png)
+![Light Mode](./Light.png)
 
 ## How To Use
 
