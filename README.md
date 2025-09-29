@@ -18,14 +18,17 @@
 
 ## Features
 
-- Customizable Tempo: Adjust the tempo (BPM) from 20 to 300 with the input field, slider, or the up/down buttons.
-- Tap Tempo: Tap the beat to automatically set the tempo based on your rhythm.
-- Multiple Time Signatures: Choose from a variety of time signatures including 2/4, 3/4, 4/4, 6/8, and 8/8.
-- Flash Beat Indicator: The first beat of every measure is highlighted with a flash for better visibility.
-- Responsive Design: Works beautifully on both desktop and mobile devices.
-- Theme Toggle: Switch between light and dark modes for a comfortable user experience.
-- Audio Feedback: Hear the beat with different pitches to distinguish the downbeat from other beats.
-- And more!
+- **Customizable Tempo:** Adjust the tempo (BPM) from 20 to 300 with the input field, slider, or the up/down buttons.
+- **Long-Press Tempo Buttons:** Hold the "+" or "−" buttons to continuously adjust BPM.
+- **Tap Tempo:** Tap the beat to automatically set the tempo based on your rhythm. Improved for mobile with double-tap zoom disabled.
+- **Volume Control:** Adjust the metronome volume with a slider, complete with a percentage display.
+- **Multiple Time Signatures:** Choose from a wide range of time signatures, including beats per measure (1–16) and beat units (1, 2, 4, 8).
+- **Flash Beat Indicator:** The first beat of every measure is highlighted with a flash for better visibility.
+- **Persistent Settings:** Automatically save and restore your last-used tempo, volume, time signature, and theme preferences.
+- **Responsive Design:** Works beautifully on both desktop and mobile devices, with improved mobile layout and interaction.
+- **Theme Toggle:** Switch between light and dark modes for a comfortable user experience.
+- **Audio Feedback:** Hear the beat with different pitches to distinguish the downbeat from other beats.
+- **And more!**
 
 ## Screenshots
 
@@ -41,28 +44,7 @@
 
 Once you open the app, you know what to do :D
 
-## Installation
-
-To run this project locally on your machine:
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/york9675/Tempo-Sync.git
-
-cd Tempo-Sync
-```
-
-2. Open the `index.html` file in your browser.
-
-3. Enjoy the app!
-
-## Technologies
-
-- **HTML5:** The structure of the app is built with HTML5.
-- **CSS3:** The styling of the app is created with CSS3.
-- **JavaScript:** The functionality of the app is implemented with JavaScript.
-- **Web Audio API:** The audio feedback is generated using the Web Audio API.
+→ **[Open Tempo Sync](https://york9675.github.io/Tempo-Sync/)** ←
 
 ## Bug report / Feedback
 
@@ -84,7 +66,7 @@ When I began developing apps, my mission was simple: to create genuinely helpful
 
 If you believe in this project and would like to support its growth, here are a few ways you can contribute:
 
-- **Donate:** Any amount, large or small, will encourge me a lot. You can sponsor the project via [Buy Me a Coffee](https://buymeacoffee.com/york0524) using the button below!
+- **Donate:** Any amount, large or small, will encourage me a lot. You can sponsor the project via [Buy Me a Coffee](https://buymeacoffee.com/york0524) using the button below!
 - **Spread the Word:** Share this project with your network—friends, family, or anyone who might benefit from or support it!
 - **Collaborate:** If you’re a developer, designer, or have ideas for improvement, feel free to contribute to the project by creating issues, submitting pull requests, or improving documentation!
 
