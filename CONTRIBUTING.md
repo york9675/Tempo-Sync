@@ -44,13 +44,6 @@ git push origin your-feature-name
 - Click on "Pull Requests" and then "New Pull Request".
 - Select your branch and submit the pull request.
 
-
-## Code Guidelines
-
-- iOS Compatibility: Targets iOS 16.0 or higher.
-- Coding Style: Follow standard Swift coding conventions.
-- Documentation: Comment your code to explain functionality and logic where necessary.
-
 ## Code of Conduct
 
 Please be respectful and considerate in your interactions. Adhere to the principles of openness, respect, and collaboration.

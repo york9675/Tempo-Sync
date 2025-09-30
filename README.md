@@ -1,6 +1,9 @@
 ![header](https://capsule-render.vercel.app/api?type=waving&height=300&color=gradient&text=Tempo%20Sync&textBg=false&animation=twinkling&desc=A%20simple%20metronome%20web%20app.&descAlign=50&descAlignY=70)
 
 <p align="center">
+  <a href="https://github.com/york9675/Tempo-Sync/releases" target="_blank">
+    <img alt="Version" src="https://img.shields.io/github/release/york9675/Tempo-Sync?style=for-the-badge" />
+  </a>
   <a href="#License" target="_blank">
     <img alt="License" src="https://img.shields.io/github/license/york9675/Tempo-Sync?logo=github&style=for-the-badge" />
   </a>
