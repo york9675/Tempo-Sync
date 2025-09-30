@@ -22,27 +22,45 @@ class Metronome {
         this.visualTimeouts = [];
         this.storageKey = 'tempoSyncSettings';
         this.isRestoringSettings = false;
-        this.volumeValueEl = document.getElementById('volumeValue');
+        this.volumeValueInput = document.getElementById('volumeValueInput');
+        this.themeSelect = document.getElementById('themeSelect');
+        this.currentTheme = 'system';
+        this.systemThemeMediaQuery = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+            ? window.matchMedia('(prefers-color-scheme: dark)')
+            : null;
+        this.boundSystemThemeHandler = (event) => {
+            if (this.currentTheme === 'system') {
+                this.applySystemTheme(event.matches);
+            }
+        };
+        this.systemThemeListenerAttached = false;
         this.lastBeatTouchTime = 0;
         this.tempoHoldTimeoutId = null;
         this.tempoHoldIntervalId = null;
         this.suppressTempoClick = false;
-    this.isTempoHolding = false;
+        this.isTempoHolding = false;
+        this.pendingAudioEvents = new Set();
+        this.mutedWhileStopped = false;
+        this.playButton = document.getElementById('playButton');
 
-        if (this.volumeValueEl) {
-            this.volumeValueEl.textContent = `${Math.round(this.volume * 100)}%`;
+        if (this.volumeValueInput) {
+            this.volumeValueInput.value = Math.round(this.volume * 100).toString();
         }
 
+        this.applyTheme('system');
         this.loadSettings();
         this.setupEventListeners();
-        this.setupThemeToggle();
+        this.setupThemeControls();
         this.setupKeyboardShortcuts();
         this.setupVisibilityHandling();
+        this.setPlayButtonState(this.isPlaying);
         this.saveSettings();
     }
 
     setupEventListeners() {
-        document.getElementById('playButton').addEventListener('click', () => this.togglePlay());
+        if (this.playButton) {
+            this.playButton.addEventListener('click', () => this.togglePlay());
+        }
         document.getElementById('bpmInput').addEventListener('change', (e) => this.updateTempo(e.target.value));
 
         const tempoSlider = document.getElementById('tempoSlider');
@@ -75,6 +93,20 @@ class Metronome {
             { passive: false }
         );
 
+        if (this.volumeValueInput) {
+            this.volumeValueInput.addEventListener('focus', (event) => event.target.select());
+            this.volumeValueInput.addEventListener('input', (event) => this.handleVolumeValueInput(event));
+            this.volumeValueInput.addEventListener('change', () => this.commitVolumeInput());
+            this.volumeValueInput.addEventListener('blur', () => this.commitVolumeInput());
+            this.volumeValueInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    this.commitVolumeInput();
+                    this.volumeValueInput.blur();
+                }
+            });
+        }
+
         const tempoDownButton = document.getElementById('tempoDown');
         const tempoUpButton = document.getElementById('tempoUp');
         this.attachTempoButton(tempoDownButton, -1);
@@ -102,24 +134,106 @@ class Metronome {
         );
     }
 
-    setupThemeToggle() {
-        const themeToggle = document.getElementById('themeToggle');
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        if (!currentTheme) {
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (prefersDark) {
-                document.documentElement.setAttribute('data-theme', 'dark');
-            }
+    setupThemeControls() {
+        if (!this.themeSelect) {
+            return;
         }
 
-        themeToggle.addEventListener('click', () => {
-            const current = document.documentElement.getAttribute('data-theme');
-            const next = current === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', next);
+        this.themeSelect.addEventListener('change', (event) => {
+            const selectedTheme = event.target.value;
+            this.applyTheme(selectedTheme);
             if (!this.isRestoringSettings) {
                 this.saveSettings();
             }
         });
+    }
+
+    applyTheme(theme) {
+        const knownThemes = [
+            'system',
+            'light',
+            'ocean',
+            'pink',
+            'gold',
+            'sunrise',
+            'aurora',
+            'dark',
+            'midnight',
+            'violet',
+            'forest',
+            'oled',
+            'ember',
+        ];
+        const normalized = knownThemes.includes(theme) ? theme : 'system';
+        this.currentTheme = normalized;
+
+        if (this.themeSelect && this.themeSelect.value !== normalized) {
+            this.themeSelect.value = normalized;
+        }
+
+        if (normalized === 'system') {
+            this.bindSystemThemeListener();
+            const prefersDark = this.systemThemeMediaQuery?.matches ?? false;
+            this.applySystemTheme(prefersDark);
+        } else {
+            this.unbindSystemThemeListener();
+            document.documentElement.setAttribute('data-theme', normalized);
+        }
+    }
+
+    applySystemTheme(prefersDark) {
+        const theme = prefersDark ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+    }
+
+    bindSystemThemeListener() {
+        if (!this.systemThemeMediaQuery || this.systemThemeListenerAttached) {
+            return;
+        }
+
+        let attached = false;
+        if (typeof this.systemThemeMediaQuery.addEventListener === 'function') {
+            this.systemThemeMediaQuery.addEventListener('change', this.boundSystemThemeHandler);
+            attached = true;
+        } else if (typeof this.systemThemeMediaQuery.addListener === 'function') {
+            this.systemThemeMediaQuery.addListener(this.boundSystemThemeHandler);
+            attached = true;
+        }
+        this.systemThemeListenerAttached = attached;
+    }
+
+    unbindSystemThemeListener() {
+        if (!this.systemThemeMediaQuery || !this.systemThemeListenerAttached) {
+            return;
+        }
+
+        if (typeof this.systemThemeMediaQuery.removeEventListener === 'function') {
+            this.systemThemeMediaQuery.removeEventListener('change', this.boundSystemThemeHandler);
+        } else if (typeof this.systemThemeMediaQuery.removeListener === 'function') {
+            this.systemThemeMediaQuery.removeListener(this.boundSystemThemeHandler);
+        }
+        this.systemThemeListenerAttached = false;
+    }
+
+
+    setPlayButtonState(isPlaying) {
+        if (!this.playButton) {
+            return;
+        }
+
+        const iconEl = this.playButton.querySelector('i');
+        const textEl = this.playButton.querySelector('span');
+
+        if (iconEl) {
+            iconEl.classList.remove('fa-play', 'fa-stop');
+            iconEl.classList.add(isPlaying ? 'fa-stop' : 'fa-play');
+        }
+
+        if (textEl) {
+            textEl.textContent = isPlaying ? 'Stop' : 'Play';
+        }
+
+        this.playButton.setAttribute('aria-label', isPlaying ? 'Stop the metronome' : 'Start the metronome');
     }
 
     setupKeyboardShortcuts() {
@@ -158,8 +272,8 @@ class Metronome {
                 return;
             }
 
-            if (settings.theme === 'light' || settings.theme === 'dark') {
-                document.documentElement.setAttribute('data-theme', settings.theme);
+            if (typeof settings.theme === 'string') {
+                this.applyTheme(settings.theme);
             }
 
             if (typeof settings.tempo === 'number') {
@@ -192,6 +306,9 @@ class Metronome {
             console.warn('Unable to load Tempo Sync settings:', error);
         } finally {
             this.isRestoringSettings = false;
+            if (this.themeSelect && this.themeSelect.value !== this.currentTheme) {
+                this.themeSelect.value = this.currentTheme;
+            }
         }
     }
 
@@ -206,7 +323,7 @@ class Metronome {
                 volume: Math.round(this.volume * 100),
                 beatsPerMeasure: this.beatsPerMeasure,
                 beatUnit: this.beatUnit,
-                theme: document.documentElement.getAttribute('data-theme') || 'light',
+                theme: this.currentTheme || 'system',
             };
             window.localStorage.setItem(this.storageKey, JSON.stringify(settings));
         } catch (error) {
@@ -295,10 +412,10 @@ class Metronome {
 
         if (this.isPlaying) {
             this.stop();
-            document.getElementById('playButton').textContent = '▶️ Play';
+            this.setPlayButtonState(false);
         } else {
             this.start();
-            document.getElementById('playButton').textContent = '⏹️ Stop';
+            this.setPlayButtonState(true);
         }
     }
 
@@ -306,9 +423,11 @@ class Metronome {
         this.isPlaying = true;
         this.currentBeatNumber = 1;
         this.clearVisualTimeouts();
+        this.restoreMasterGain();
         this.nextNoteTime = this.audioContext.currentTime + 0.05;
         this.updateSchedulingForVisibility();
         this.scheduler();
+        this.setPlayButtonState(true);
     }
 
     stop() {
@@ -323,6 +442,8 @@ class Metronome {
         this.scheduleAheadTime = this.defaultScheduleAheadTime;
         this.lookahead = this.defaultLookahead;
 
+        this.flushPendingAudio();
+        this.muteMasterGain();
         this.clearVisualTimeouts();
         clearTimeout(this.flashTimeout);
         this.flashTimeout = null;
@@ -330,6 +451,7 @@ class Metronome {
         const beatDisplay = document.getElementById('beatDisplay');
         beatDisplay.classList.remove('flash');
         beatDisplay.textContent = '1';
+        this.setPlayButtonState(false);
     }
 
     scheduler() {
@@ -366,6 +488,38 @@ class Metronome {
         oscillator.connect(gainNode);
         gainNode.connect(this.masterGain || this.audioContext.destination);
 
+        const pendingEvent = {
+            oscillator,
+            gainNode,
+            startTime: time,
+            cleanup: null,
+        };
+        this.pendingAudioEvents.add(pendingEvent);
+
+        const removePending = () => {
+            if (this.pendingAudioEvents.has(pendingEvent)) {
+                this.pendingAudioEvents.delete(pendingEvent);
+            }
+            try {
+                oscillator.disconnect();
+            } catch (error) {
+                // ignore
+            }
+            try {
+                gainNode.disconnect();
+            } catch (error) {
+                // ignore
+            }
+        };
+
+        pendingEvent.cleanup = removePending;
+
+        if (typeof oscillator.addEventListener === 'function') {
+            oscillator.addEventListener('ended', removePending, { once: true });
+        } else {
+            oscillator.onended = removePending;
+        }
+
         gainNode.gain.cancelScheduledValues(time);
         gainNode.gain.setValueAtTime(0, time);
         const peakLevel = beatNumber === 1 ? 1 : 0.7;
@@ -397,33 +551,115 @@ class Metronome {
         this.visualTimeouts = [];
     }
 
+    flushPendingAudio() {
+        if (!this.audioContext) {
+            this.pendingAudioEvents.clear();
+            return;
+        }
+
+        const now = this.audioContext.currentTime;
+        const events = Array.from(this.pendingAudioEvents);
+
+        events.forEach((event) => {
+            const { gainNode, cleanup } = event;
+
+            try {
+                gainNode.gain.cancelScheduledValues(now);
+                gainNode.gain.setValueAtTime(0, now);
+            } catch (error) {
+                // ignore
+            }
+
+            if (typeof cleanup === 'function') {
+                cleanup();
+            }
+        });
+
+        this.pendingAudioEvents.clear();
+    }
+
+    muteMasterGain() {
+        if (!this.masterGain || !this.audioContext) {
+            return;
+        }
+
+        const now = this.audioContext.currentTime;
+        try {
+            this.masterGain.gain.cancelScheduledValues(now);
+            this.masterGain.gain.setTargetAtTime(0, now, 0.01);
+            this.mutedWhileStopped = true;
+        } catch (error) {
+            // ignore
+        }
+    }
+
+    restoreMasterGain() {
+        if (!this.masterGain || !this.audioContext) {
+            return;
+        }
+
+        const now = this.audioContext.currentTime;
+        try {
+            this.masterGain.gain.cancelScheduledValues(now);
+            this.masterGain.gain.setValueAtTime(0, now);
+            this.masterGain.gain.setTargetAtTime(this.volume, now + 0.005, 0.02);
+            this.mutedWhileStopped = false;
+        } catch (error) {
+            // ignore
+        }
+    }
+
     tapTempo() {
-        const now = Date.now();
+        const now = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
         const beatDisplay = document.getElementById('beatDisplay');
 
         beatDisplay.classList.add('flash');
         setTimeout(() => beatDisplay.classList.remove('flash'), 100);
 
+        if (this.tapTimes.length && now - this.tapTimes[this.tapTimes.length - 1] > 2500) {
+            this.tapTimes = [];
+        }
+
         this.tapTimes.push(now);
+
+        if (this.tapTimes.length > 10) {
+            this.tapTimes.shift();
+        }
 
         if (this.tapTimes.length > 1) {
             const intervals = this.tapTimes.slice(1).map((t, i) => t - this.tapTimes[i]);
-            const avgInterval = intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length;
-            const bpm = Math.round(60000 / avgInterval);
+            const bpm = this.calculateTapBpm(intervals);
 
-            if (bpm >= 20 && bpm <= 300) {
-                this.updateTempo(bpm);
+            if (bpm !== null) {
+                const clamped = Math.min(Math.max(Math.round(bpm), 20), 300);
+                this.updateTempo(clamped);
             }
-        }
-
-        if (this.tapTimes.length > 8) {
-            this.tapTimes.shift();
         }
 
         clearTimeout(this.tapTimeoutId);
         this.tapTimeoutId = setTimeout(() => {
             this.tapTimes = [];
         }, 5000);
+    }
+
+    calculateTapBpm(intervals) {
+        if (!intervals.length) {
+            return null;
+        }
+
+        const sorted = [...intervals].sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)];
+        const tolerance = median * 0.25;
+        const filtered = intervals.filter((interval) => Math.abs(interval - median) <= tolerance);
+        const workingSet = filtered.length >= 2 ? filtered : intervals;
+        const avgInterval = workingSet.reduce((sum, interval) => sum + interval, 0) / workingSet.length;
+
+        if (avgInterval <= 0) {
+            return null;
+        }
+
+        const bpm = 60000 / avgInterval;
+        return Number.isFinite(bpm) ? bpm : null;
     }
 
     attachTempoButton(button, step) {
@@ -497,20 +733,71 @@ class Metronome {
     }
 
     updateVolume(value) {
-        const parsedValue = Math.min(Math.max(parseInt(value, 10), 0), 100);
+        const numericValue = Number.parseInt(value, 10);
+        if (Number.isNaN(numericValue)) {
+            const fallback = Math.round(this.volume * 100);
+            document.getElementById('volumeControl').value = fallback;
+            if (this.volumeValueInput) {
+                this.volumeValueInput.value = fallback.toString();
+            }
+            return;
+        }
+
+        const parsedValue = Math.min(Math.max(numericValue, 0), 100);
         this.volume = parsedValue / 100;
         document.getElementById('volumeControl').value = parsedValue;
-        if (this.volumeValueEl) {
-            this.volumeValueEl.textContent = `${parsedValue}%`;
+        if (this.volumeValueInput) {
+            this.volumeValueInput.value = parsedValue.toString();
         }
 
         if (this.masterGain) {
-            this.masterGain.gain.setTargetAtTime(this.volume, this.audioContext.currentTime, 0.01);
+            const now = this.audioContext ? this.audioContext.currentTime : 0;
+            const target = !this.isPlaying && this.mutedWhileStopped ? 0 : this.volume;
+            try {
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setTargetAtTime(target, now, 0.01);
+            } catch (error) {
+                // ignore scheduling errors
+            }
         }
 
         if (!this.isRestoringSettings) {
             this.saveSettings();
         }
+    }
+
+    handleVolumeValueInput(event) {
+        const input = event.target;
+        if (!(input instanceof HTMLInputElement)) {
+            return;
+        }
+
+        let sanitized = input.value.replace(/[^0-9]/g, '');
+        if (sanitized.length > 3) {
+            sanitized = sanitized.slice(0, 3);
+        }
+
+        input.value = sanitized;
+    }
+
+    commitVolumeInput() {
+        if (!this.volumeValueInput) {
+            return;
+        }
+
+        const rawValue = this.volumeValueInput.value.trim();
+        if (rawValue === '') {
+            this.volumeValueInput.value = Math.round(this.volume * 100).toString();
+            return;
+        }
+
+        const parsed = Number.parseInt(rawValue, 10);
+        if (Number.isNaN(parsed)) {
+            this.volumeValueInput.value = Math.round(this.volume * 100).toString();
+            return;
+        }
+
+        this.updateVolume(parsed);
     }
 
     handleBeatTouch(event) {

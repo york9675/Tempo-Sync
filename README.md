@@ -18,27 +18,64 @@
 
 ## Features
 
-- **Customizable Tempo:** Adjust the tempo (BPM) from 20 to 300 with the input field, slider, or the up/down buttons.
-- **Long-Press Tempo Buttons:** Hold the "+" or "−" buttons to continuously adjust BPM.
-- **Tap Tempo:** Tap the beat to automatically set the tempo based on your rhythm. Improved for mobile with double-tap zoom disabled.
-- **Volume Control:** Adjust the metronome volume with a slider, complete with a percentage display.
 - **Multiple Time Signatures:** Choose from a wide range of time signatures, including beats per measure (1–16) and beat units (1, 2, 4, 8).
 - **Flash Beat Indicator:** The first beat of every measure is highlighted with a flash for better visibility.
+- **12 Beautiful Themes:** Choose from a comprehensive theme system with grouped selection:
+  - **Light themes:** Light, Ocean, Pink, Gold, Sunrise, Aurora
+  - **Dark themes:** Dark, Midnight, Violet, Forest, OLED, Ember
+  - **System theme:** Automatically follows your device's light/dark preference
 - **Persistent Settings:** Automatically save and restore your last-used tempo, volume, time signature, and theme preferences.
-- **Responsive Design:** Works beautifully on both desktop and mobile devices, with improved mobile layout and interaction.
-- **Theme Toggle:** Switch between light and dark modes for a comfortable user experience.
-- **Audio Feedback:** Hear the beat with different pitches to distinguish the downbeat from other beats.
-- **And more!**
+- **Responsive Design:** Works beautifully on both desktop and mobile devices, with improved mobile layout.
+- **Accessibility Features:** Full keyboard navigation support, ARIA labels.
+- **AND MORE!**
 
 ## Screenshots
 
-### Dark Mode
+### Light Theme
+![Light](./Screenshots/Light.png)
 
-![Dark Mode](./Dark.png)
+<details>
+  <summary>Show other light themes</summary>
 
-### Light Mode
+#### Ocean
+![Ocean](./Screenshots/Ocean.png)
 
-![Light Mode](./Light.png)
+#### Pink
+![Pink](./Screenshots/Pink.png)
+
+#### Gold
+![Gold](./Screenshots/Gold.png)
+
+#### Sunrise
+![Sunrise](./Screenshots/Sunrise.png)
+
+#### Aurora
+![Aurora](./Screenshots/Aurora.png)
+
+</details>
+
+### Dark Theme
+![Dark](./Screenshots/Dark.png)
+
+<details>
+  <summary>Show other dark themes</summary>
+
+#### Midnight
+![Midnight](./Screenshots/Midnight.png)
+
+#### Violet
+![Violet](./Screenshots/Violet.png)
+
+#### Forest
+![Forest](./Screenshots/Forest.png)
+
+#### OLED
+![OLED](./Screenshots/OLED.png)
+
+#### Ember
+![Ember](./Screenshots/Ember.png)
+
+</details>
 
 ## How To Use
 

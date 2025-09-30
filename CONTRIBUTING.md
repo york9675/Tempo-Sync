@@ -1,10 +1,10 @@
-# Contributing to YorkNotify
+# Contributing to Tempo-Sync
 
-Thank you for considering contributing to **YorkNotify**! Your contributions are greatly appreciated and help improve the app for all users.
+Thank you for considering contributing to **Tempo-Sync**! Your contributions are greatly appreciated and help improve the app for all users.
 
 ## How Can You Contribute?
 
-- **Report Bugs or Provide Feedback**: If you encounter any issues or have suggestions, please fill out [this form](https://forms.gle/o1hFjy4q98Ua1H7L7) or open an [issue](https://github.com/york9675/YorkNotify/issues).
+- **Report Bugs or Provide Feedback**: If you encounter any issues or have suggestions, please open an [issue](https://github.com/york9675/Tempo-Sync/issues).
 - **Improve Documentation**: Enhancements to documentation are always welcome.
 - **Submit Code Improvements**: You can fix bugs, add new features, or improve existing code.
 
@@ -17,8 +17,8 @@ Click the "Fork" button at the top right of the repository page to create a copy
 2. **Clone Your Fork**
 
 ```bash
-git clone https://github.com/your-username/YorkNotify.git
-cd YorkNotify
+git clone https://github.com/your-username/Tempo-Sync.git
+cd Tempo-Sync
 ```
 
 3. **Create a New Branch**
