@@ -36,7 +36,7 @@
 ## Screenshots
 
 > [!NOTE]  
-> Screenshots may not upto date with the latest version and vary based on device and browser.
+> Screenshots may not be up to date with the latest version and vary based on device and browser.
 
 ### Light Theme
 ![Light](./Screenshots/Light.png)
