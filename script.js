@@ -1044,10 +1044,7 @@ class Metronome {
     }
 
     applyTheme(theme) {
-        const themeAliases = {
-            novel: 'lilac',
-        };
-        const requestedTheme = themeAliases[theme] || theme;
+        const requestedTheme = theme;
 
         const knownThemes = [
             'system',
