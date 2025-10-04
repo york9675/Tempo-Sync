@@ -11,7 +11,7 @@ class Metronome {
         this.tapTimeoutId = null;
         this.flashTimeout = null;
         this.masterGain = null;
-        this.volume = 1;
+        this.volume = 0.8;
         this.defaultScheduleAheadTime = 0.12;
         this.backgroundScheduleAheadTime = 6.0;
         this.scheduleAheadTime = this.defaultScheduleAheadTime;
