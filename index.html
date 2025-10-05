@@ -31,33 +31,12 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                 </header>
             </div>
             <div class="header-actions">
-                <label class="theme-picker" for="themeSelect">
-                    <i class="fa-solid fa-palette" aria-hidden="true"></i>
-                    <span class="sr-only">Change theme</span>
-                    <select id="themeSelect" name="themeSelect">
-                        <option value="system">System</option>
-                        <optgroup label="Light themes">
-                            <option value="light">Light</option>
-                            <option value="ocean">Ocean</option>
-                            <option value="pink">Pink</option>
-                            <option value="gold">Gold</option>
-                            <option value="sunrise">Sunrise</option>
-                            <option value="aurora">Aurora</option>
-                            <option value="lilac">Lilac</option>
-                            <option value="meadow">Meadow</option>
-                        </optgroup>
-                        <optgroup label="Dark themes">
-                            <option value="dark">Dark</option>
-                            <option value="midnight">Midnight</option>
-                            <option value="oled">OLED</option>
-                            <option value="violet">Violet</option>
-                            <option value="forest">Forest</option>
-                            <option value="ember">Ember</option>
-                            <option value="nebula">Nebula</option>
-                            <option value="nocturne">Nocturne</option>
-                        </optgroup>
-                    </select>
-                </label>
+                <div class="theme-trigger">
+                    <button class="theme-picker" id="themeButton" type="button" title="Open theme picker" aria-label="Open theme picker" aria-haspopup="dialog" aria-controls="themePanel" aria-expanded="false">
+                        <i class="fa-solid fa-palette" aria-hidden="true"></i>
+                        <span class="sr-only">Open theme picker</span>
+                    </button>
+                </div>
                 <button class="preset-button" id="presetButton" type="button" title="Open presets" aria-label="Open presets" aria-expanded="false">
                     <i class="fa-solid fa-list" aria-hidden="true"></i>
                 </button>
@@ -131,7 +110,7 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
         <footer>
             <div class="footer-lines">
                 <p class="footer-line">&copy; 2025 <a href="https://york9675.github.io/website/" target="_blank" rel="noopener noreferrer" class="link-text">York Development</a>. Made with ❤️ in Taiwan</p>
-                <p class="footer-line"><a href="https://github.com/york9675/Tempo-Sync/releases/tag/v3.1.0" target="_blank" rel="noopener noreferrer" class="link-text">v3.1.0</a> • <a href="https://github.com/york9675/Tempo-Sync" target="_blank" rel="noopener noreferrer" class="link-text">View Source on GitHub</a> • <a href="https://www.buymeacoffee.com/york0524" target="_blank" rel="noopener noreferrer" class="link-text">Buy Me a Coffee</a></p>
+                <p class="footer-line"><a href="https://github.com/york9675/Tempo-Sync/releases/tag/v3.1.1" target="_blank" rel="noopener noreferrer" class="link-text">v3.1.1</a> • <a href="https://github.com/york9675/Tempo-Sync" target="_blank" rel="noopener noreferrer" class="link-text">View Source on GitHub</a> • <a href="https://www.buymeacoffee.com/york0524" target="_blank" rel="noopener noreferrer" class="link-text">Buy Me a Coffee</a></p>
             </div>
         </footer>
     </div>
@@ -241,6 +220,23 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                 <div class="preset-empty" id="presetEmptyState" hidden>
                     <p>No presets yet. Save your favorite settings to get started.</p>
                 </div>
+            </div>
+        </div>
+    </div>
+    <div class="theme-panel" id="themePanel" aria-hidden="true">
+        <div class="theme-panel__backdrop" data-theme-close></div>
+        <div class="theme-panel__content" role="dialog" aria-modal="true" aria-labelledby="themePanelTitle">
+            <div class="theme-panel__header">
+                <div class="theme-panel__header-text">
+                    <h2 id="themePanelTitle">Themes</h2>
+                    <p class="theme-panel__subtitle">Pick a palette, preview the vibe, and apply it instantly.</p>
+                </div>
+                <button type="button" class="theme-close" id="themeCloseButton" aria-label="Close themes">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="theme-panel__body">
+                <div class="theme-panel__sections" id="themeList" role="list"></div>
             </div>
         </div>
     </div>
