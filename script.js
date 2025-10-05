@@ -1142,7 +1142,8 @@ class Metronome {
             const target = e.target;
             const tagName = typeof target?.tagName === 'string' ? target.tagName.toLowerCase() : '';
             const isEditableField = tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target?.isContentEditable === true;
-            if (isEditableField && ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+            const hasModifier = e.altKey || e.ctrlKey || e.metaKey;
+            if (isEditableField || hasModifier) {
                 return;
             }
 

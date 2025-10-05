@@ -31,9 +31,6 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                 </header>
             </div>
             <div class="header-actions">
-                <button class="preset-button" id="presetButton" type="button" title="Open presets" aria-label="Open presets" aria-expanded="false">
-                    <i class="fa-solid fa-list" aria-hidden="true"></i>
-                </button>
                 <label class="theme-picker" for="themeSelect">
                     <i class="fa-solid fa-palette" aria-hidden="true"></i>
                     <span class="sr-only">Change theme</span>
@@ -61,6 +58,9 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                         </optgroup>
                     </select>
                 </label>
+                <button class="preset-button" id="presetButton" type="button" title="Open presets" aria-label="Open presets" aria-expanded="false">
+                    <i class="fa-solid fa-list" aria-hidden="true"></i>
+                </button>
             </div>
         </div>
 
@@ -171,11 +171,11 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                         <div class="preset-form-row preset-form-grid">
                             <label for="presetTempoInput">
                                 Tempo (BPM)
-                                <input type="number" id="presetTempoInput" name="presetTempo" min="20" max="300" required>
+                                <input type="number" id="presetTempoInput" name="presetTempo" min="20" max="300" inputmode="numeric" required>
                             </label>
                             <label for="presetVolumeInput">
                                 Volume (%)
-                                <input type="number" id="presetVolumeInput" name="presetVolume" min="0" max="100" required>
+                                <input type="number" id="presetVolumeInput" name="presetVolume" min="0" max="100" inputmode="numeric" required>
                             </label>
                         </div>
                         <div class="preset-form-row preset-form-time-signature">
