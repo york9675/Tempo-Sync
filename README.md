@@ -24,15 +24,19 @@
 - **Multiple Time Signatures:** Choose from a wide range of time signatures, including beats per measure (1–16) and beat units (1, 2, 4, 8).
 - **Flash Beat Indicator:** The first beat of every measure is highlighted with a flash for better visibility.
 - **12 Beautiful Themes:** Choose from a comprehensive theme system with grouped selection:
-  - **Light themes:** Light, Ocean, Pink, Gold, Sunrise, Aurora
-  - **Dark themes:** Dark, Midnight, Violet, Forest, OLED, Ember
+  - **Light themes:** Light, Ocean, Pink, Gold, Sunrise, Aurora, Lilac, Meadow
+  - **Dark themes:** Dark, Midnight, Violet, Forest, OLED, Ember, Nebula, Nocturne
   - **System theme:** Automatically follows your device's light/dark preference
+- **Custom Presets:** Save and manage your favorite tempo and time signature presets for quick access.
 - **Persistent Settings:** Automatically save and restore your last-used tempo, volume, time signature, and theme preferences.
 - **Responsive Design:** Works beautifully on both desktop and mobile devices, with improved mobile layout.
 - **Accessibility Features:** Full keyboard navigation support, ARIA labels.
 - **AND MORE!**
 
 ## Screenshots
+
+> [!NOTE]  
+> Screenshots may not be up to date with the latest version and vary based on device and browser.
 
 ### Light Theme
 ![Light](./Screenshots/Light.png)
@@ -54,6 +58,12 @@
 
 #### Aurora
 ![Aurora](./Screenshots/Aurora.png)
+
+#### Lilac
+![Lilac](./Screenshots/Lilac.png)
+
+#### Meadow
+![Meadow](./Screenshots/Meadow.png)
 
 </details>
 
@@ -77,6 +87,12 @@
 
 #### Ember
 ![Ember](./Screenshots/Ember.png)
+
+#### Nebula
+![Nebula](./Screenshots/Nebula.png)
+
+#### Nocturne
+![Nocturne](./Screenshots/Nocturne.png)
 
 </details>
 
