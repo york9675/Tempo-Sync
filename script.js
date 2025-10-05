@@ -84,6 +84,17 @@ class Metronome {
         this.customAlertResolve = null;
         this.customAlertBackdrop = this.customAlert?.querySelector('[data-alert-close]') || null;
         this.customAlertBackdropHandler = null;
+        this.themeButton = document.getElementById('themeButton');
+        this.themePanel = document.getElementById('themePanel');
+        this.themePanelBackdrop = this.themePanel?.querySelector('[data-theme-close]') || null;
+        this.themeCloseButton = document.getElementById('themeCloseButton');
+        this.themeListElement = document.getElementById('themeList');
+        this.boundThemeKeyHandler = (event) => {
+            if (event.key === 'Escape' && this.isThemePanelOpen()) {
+                this.closeThemePanel();
+            }
+        };
+        this.themeCatalog = this.createThemeCatalog();
 
         if (this.volumeValueInput) {
             this.volumeValueInput.value = Math.round(this.volume * 100).toString();
@@ -97,6 +108,7 @@ class Metronome {
         this.loadSettings();
         this.setupEventListeners();
         this.setupThemeControls();
+        this.setupThemePanel();
         this.setupPresetControls();
         this.showPresetForm(
             {
@@ -211,6 +223,351 @@ class Metronome {
                 this.saveSettings();
             }
         });
+    }
+
+    createThemeCatalog() {
+        const entries = [
+            {
+                id: 'system',
+                label: 'System',
+                description: 'Matches your device preference for light or dark mode automatically.',
+                group: 'system',
+                swatches: [],
+            },
+            {
+                id: 'light',
+                label: 'Light',
+                description: 'Balanced whites with classic Tempo Sync blues.',
+                group: 'light',
+                swatches: ['#f9fafb', '#3b82f6', '#1f2937'],
+            },
+            {
+                id: 'ocean',
+                label: 'Ocean',
+                description: 'Coastal blues and deep navy accents.',
+                group: 'light',
+                swatches: ['#e0f7ff', '#0ea5e9', '#0f172a'],
+            },
+            {
+                id: 'pink',
+                label: 'Pink',
+                description: 'Playful rosy gradients with a warm glow.',
+                group: 'light',
+                swatches: ['#fff5f9', '#f472b6', '#831843'],
+            },
+            {
+                id: 'gold',
+                label: 'Gold',
+                description: 'Golden hour warmth for inspired sessions.',
+                group: 'light',
+                swatches: ['#fff9ed', '#f59e0b', '#7c2d12'],
+            },
+            {
+                id: 'sunrise',
+                label: 'Sunrise',
+                description: 'Soft orange gradients made for early practice.',
+                group: 'light',
+                swatches: ['#fff7ed', '#f97316', '#7c2d12'],
+            },
+            {
+                id: 'aurora',
+                label: 'Aurora',
+                description: 'Cool aqua hues inspired by northern skies.',
+                group: 'light',
+                swatches: ['#f0fdfa', '#22d3ee', '#115e59'],
+            },
+            {
+                id: 'lilac',
+                label: 'Lilac',
+                description: 'Lavender tones with a gentle evening glow.',
+                group: 'light',
+                swatches: ['#f6f2e9', '#6366f1', '#312e81'],
+            },
+            {
+                id: 'meadow',
+                label: 'Meadow',
+                description: 'Fresh greens for calm, focused practice.',
+                group: 'light',
+                swatches: ['#f0fdf4', '#22c55e', '#14532d'],
+            },
+            {
+                id: 'dark',
+                label: 'Dark',
+                description: 'A balanced dark mode that keeps details crisp.',
+                group: 'dark',
+                swatches: ['#111827', '#60a5fa', '#f9fafb'],
+            },
+            {
+                id: 'midnight',
+                label: 'Midnight',
+                description: 'Deep navy shadows with frosted highlights.',
+                group: 'dark',
+                swatches: ['#0b1220', '#93c5fd', '#e2e8f0'],
+            },
+            {
+                id: 'oled',
+                label: 'OLED',
+                description: 'True black canvas tailored for OLED displays.',
+                group: 'dark',
+                swatches: ['#000000', '#38bdf8', '#f8fafc'],
+            },
+            {
+                id: 'violet',
+                label: 'Violet',
+                description: 'Vivid purples with neon-inspired accents.',
+                group: 'dark',
+                swatches: ['#1d1530', '#a855f7', '#f5f3ff'],
+            },
+            {
+                id: 'forest',
+                label: 'Forest',
+                description: 'Moody greens for low-light rehearsals.',
+                group: 'dark',
+                swatches: ['#0f1a17', '#34d399', '#d1fae5'],
+            },
+            {
+                id: 'ember',
+                label: 'Ember',
+                description: 'Smoldering reds with ember highlights.',
+                group: 'dark',
+                swatches: ['#1c0f0d', '#fb7185', '#fee2e2'],
+            },
+            {
+                id: 'nebula',
+                label: 'Nebula',
+                description: 'Cosmic blues with airy, galactic light.',
+                group: 'dark',
+                swatches: ['#0a1124', '#7dd3fc', '#e0f2fe'],
+            },
+            {
+                id: 'nocturne',
+                label: 'Nocturne',
+                description: 'Golden nocturnal contrast for late-night grooves.',
+                group: 'dark',
+                swatches: ['#0c0a09', '#facc15', '#fef3c7'],
+            },
+        ];
+
+        return entries.map((entry, index) => ({ ...entry, order: index }));
+    }
+
+    setupThemePanel() {
+        if (!this.themeButton || !this.themePanel) {
+            return;
+        }
+
+        this.themeButton.addEventListener('click', () => this.openThemePanel());
+        this.themeCloseButton?.addEventListener('click', () => this.closeThemePanel());
+        this.themePanelBackdrop?.addEventListener('click', () => this.closeThemePanel());
+
+        this.themeListElement?.addEventListener('click', (event) => {
+            const target = event.target.closest('[data-theme-id]');
+            if (!target) {
+                return;
+            }
+
+            const themeId = target.getAttribute('data-theme-id');
+            if (!themeId) {
+                return;
+            }
+
+            this.applyTheme(themeId);
+            if (!this.isRestoringSettings) {
+                this.saveSettings();
+            }
+        });
+
+        this.renderThemeList();
+    }
+
+    isThemePanelOpen() {
+        return this.themePanel?.classList.contains('is-open') ?? false;
+    }
+
+    openThemePanel() {
+        if (!this.themePanel) {
+            return;
+        }
+
+        if (this.themePanel.classList.contains('is-open')) {
+            return;
+        }
+
+        this.renderThemeList();
+        this.themePanel.classList.remove('is-closing');
+        this.themePanel.classList.add('is-open');
+        this.themePanel.setAttribute('aria-hidden', 'false');
+        this.themeButton?.setAttribute('aria-expanded', 'true');
+        document.addEventListener('keydown', this.boundThemeKeyHandler);
+
+        queueMicrotask(() => {
+            const activeButton = this.themeListElement?.querySelector('.theme-item--active');
+            if (activeButton) {
+                activeButton.focus?.();
+            } else {
+                this.themeListElement?.querySelector('[data-theme-id]')?.focus?.();
+            }
+        });
+    }
+
+    closeThemePanel() {
+        if (!this.themePanel || (!this.isThemePanelOpen() && !this.themePanel.classList.contains('is-closing'))) {
+            return;
+        }
+
+        if (this.themePanel.classList.contains('is-closing')) {
+            return;
+        }
+
+        this.themePanel.classList.add('is-closing');
+        this.themePanel.setAttribute('aria-hidden', 'true');
+        this.themeButton?.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('keydown', this.boundThemeKeyHandler);
+
+        let fallbackTimeoutId = null;
+
+        const finalizeClose = () => {
+            if (fallbackTimeoutId !== null) {
+                window.clearTimeout(fallbackTimeoutId);
+            }
+            this.themePanel.classList.remove('is-closing');
+            this.themePanel.classList.remove('is-open');
+            this.themePanel.removeEventListener('transitionend', onTransitionEnd);
+            this.themeButton?.focus?.();
+        };
+
+        const onTransitionEnd = (event) => {
+            if (event.target !== this.themePanel) {
+                return;
+            }
+
+            finalizeClose();
+        };
+
+        this.themePanel.addEventListener('transitionend', onTransitionEnd);
+
+        fallbackTimeoutId = window.setTimeout(() => {
+            finalizeClose();
+        }, 320);
+
+        requestAnimationFrame(() => {
+            this.themePanel.classList.remove('is-open');
+        });
+    }
+
+    renderThemeList() {
+        if (!this.themeListElement) {
+            return;
+        }
+
+        const sections = this.buildThemeSections();
+        const activeTheme = this.currentTheme;
+
+        const markup = sections
+            .map((section) => {
+                const headingMarkup = section.title
+                    ? `
+                        <header class="theme-section__heading">
+                            <div class="theme-section__title">${this.escapeHtml(section.title)}</div>
+                            ${section.description ? `<p class="theme-section__description">${this.escapeHtml(section.description)}</p>` : ''}
+                        </header>
+                    `
+                    : '';
+
+                const itemsMarkup = section.items
+                    .map((theme) => this.renderThemeItem(theme, activeTheme))
+                    .join('');
+
+                return `
+                    <section class="theme-section" role="group" aria-label="${this.escapeHtml(section.accessibleTitle || section.title || 'Themes')}">
+                        ${headingMarkup}
+                        <div class="theme-grid" role="list">
+                            ${itemsMarkup}
+                        </div>
+                    </section>
+                `;
+            })
+            .join('');
+
+        this.themeListElement.innerHTML = markup;
+
+        queueMicrotask(() => {
+            if (!this.isThemePanelOpen()) {
+                return;
+            }
+            const activeButton = this.themeListElement?.querySelector('.theme-item--active');
+            activeButton?.focus?.();
+        });
+    }
+
+    buildThemeSections() {
+        const groups = [
+            {
+                id: 'system',
+                title: 'System',
+                description: 'Let Tempo Sync follow your operating system preference.',
+                accessibleTitle: 'System theme',
+            },
+            {
+                id: 'light',
+                title: 'Light themes',
+                description: 'Bright palettes that stand out in daylight practice.',
+            },
+            {
+                id: 'dark',
+                title: 'Dark themes',
+                description: 'Low-light palettes that keep your focus at night.',
+            },
+        ];
+
+        const grouped = this.themeCatalog.reduce((accumulator, theme) => {
+            const key = theme.group;
+            if (!accumulator[key]) {
+                accumulator[key] = [];
+            }
+            accumulator[key].push(theme);
+            return accumulator;
+        }, {});
+
+        return groups
+            .map((group) => {
+                const items = (grouped[group.id] || []).slice().sort((a, b) => a.order - b.order);
+                return items.length ? { ...group, items } : null;
+            })
+            .filter(Boolean);
+    }
+
+    renderThemeItem(theme, activeTheme) {
+        const isActive = activeTheme === theme.id;
+        const isSystem = theme.id === 'system';
+        const swatchValues = Array.isArray(theme.swatches) ? theme.swatches : [];
+        const hasSwatches = swatchValues.length > 0;
+        const swatchesMarkup = swatchValues
+            .map((swatch) => `<span class="theme-item__swatch" style="--swatch-color: ${this.escapeHtml(swatch)};"></span>`)
+            .join('');
+        const classes = ['theme-item'];
+        if (isActive) {
+            classes.push('theme-item--active');
+        }
+        if (isSystem) {
+            classes.push('theme-item--system');
+        }
+
+        return `
+            <button type="button" class="${classes.join(' ')}" data-theme-id="${this.escapeHtml(theme.id)}" role="listitem" aria-pressed="${isActive ? 'true' : 'false'}">
+                ${hasSwatches
+                    ? `<div class="theme-item__swatches" aria-hidden="true">${swatchesMarkup}</div>`
+                    : ''}
+                <div class="theme-item__info">
+                    <span class="theme-item__name">${this.escapeHtml(theme.label)}</span>
+                    ${theme.description ? `<span class="theme-item__description">${this.escapeHtml(theme.description)}</span>` : ''}
+                </div>
+                <span class="theme-item__state" aria-hidden="true">
+                    <i class="fa-solid fa-check" aria-hidden="true"></i>
+                    <span class="theme-item__state-text">Active</span>
+                </span>
+            </button>
+        `;
     }
 
     setupPresetControls() {
@@ -642,6 +999,7 @@ class Metronome {
         this.currentBeatNumber = 1;
         this.saveSettings();
         this.refreshPresetUI();
+        this.closePresetPanel();
     }
 
     renderPresetList() {
@@ -904,6 +1262,7 @@ class Metronome {
         preset.updatedAt = Date.now();
         this.saveSettings();
         this.refreshPresetUI();
+        this.closePresetPanel();
     }
 
     generatePresetId() {
@@ -1080,6 +1439,8 @@ class Metronome {
             this.unbindSystemThemeListener();
             document.documentElement.setAttribute('data-theme', normalized);
         }
+
+        this.renderThemeList();
     }
 
     applySystemTheme(prefersDark) {
