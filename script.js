@@ -892,7 +892,7 @@ class Metronome {
         }
 
         this.clearCustomThemeError();
-        this.updateCustomThemeConfig({ accent, overrides: overridesResult.overrides }, { applyImmediately: true });
+        this.updateCustomThemeConfig({ accent, overrides: overridesResult.overrides });
         this.applyTheme('custom');
         if (!this.isRestoringSettings) {
             this.saveSettings();
@@ -985,10 +985,7 @@ class Metronome {
     resetCustomTheme() {
         this.clearCustomThemeError();
         const shouldReapply = this.currentTheme === 'custom';
-        this.updateCustomThemeConfig(
-            { accent: this.defaultCustomAccent, overrides: {} },
-            { applyImmediately: shouldReapply }
-        );
+        this.updateCustomThemeConfig({ accent: this.defaultCustomAccent, overrides: {} });
 
         if (shouldReapply) {
             this.applyTheme('custom');
@@ -1032,9 +1029,6 @@ class Metronome {
             return `#${hex.split('').map((char) => char + char).join('')}`.toLowerCase();
         }
         if (hex.length === 6 && /^[0-9a-f]{6}$/i.test(hex)) {
-            return `#${hex}`.toLowerCase();
-        }
-        if (hex.length === 8 && /^[0-9a-f]{8}$/i.test(hex)) {
             return `#${hex}`.toLowerCase();
         }
         return null;

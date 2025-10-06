@@ -26,7 +26,7 @@
 - **12 Beautiful Themes:** Choose from a comprehensive theme system with grouped selection:
   - **Light themes:** Light, Ocean, Pink, Gold, Sunrise, Aurora, Lilac, Meadow
   - **Dark themes:** Dark, Midnight, Violet, Forest, OLED, Ember, Nebula, Nocturne
-  - **Custom theme:** Create your own theme by selecting colors for primary, secondary, background, and text elements.
+  - **Custom theme:** Create your own theme by selecting colors for accent, accent hover, background, surface, primary text, secondary text, border, and downbeat flash elements.
   - **System theme:** Automatically follows your device's light/dark preference
 - **Custom Presets:** Save and manage your favorite tempo and time signature presets for quick access.
 - **Persistent Settings:** Automatically save and restore your last-used tempo, volume, time signature, and theme preferences.
