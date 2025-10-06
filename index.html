@@ -32,12 +32,12 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
             </div>
             <div class="header-actions">
                 <div class="theme-trigger">
-                    <button class="theme-picker" id="themeButton" type="button" title="Open theme picker" aria-label="Open theme picker" aria-haspopup="dialog" aria-controls="themePanel" aria-expanded="false">
+                    <button class="header-button" id="themeButton" type="button" title="Open theme picker" aria-label="Open theme picker" aria-haspopup="dialog" aria-controls="themePanel" aria-expanded="false">
                         <i class="fa-solid fa-palette" aria-hidden="true"></i>
                         <span class="sr-only">Open theme picker</span>
                     </button>
                 </div>
-                <button class="preset-button" id="presetButton" type="button" title="Open presets" aria-label="Open presets" aria-expanded="false">
+                <button class="header-button" id="presetButton" type="button" title="Open presets" aria-label="Open presets" aria-expanded="false">
                     <i class="fa-solid fa-list" aria-hidden="true"></i>
                 </button>
             </div>
@@ -110,7 +110,7 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
         <footer>
             <div class="footer-lines">
                 <p class="footer-line">&copy; 2025 <a href="https://york9675.github.io/website/" target="_blank" rel="noopener noreferrer" class="link-text">York Development</a>. Made with ❤️ in Taiwan</p>
-                <p class="footer-line"><a href="https://github.com/york9675/Tempo-Sync/releases/tag/v3.1.1" target="_blank" rel="noopener noreferrer" class="link-text">v3.1.1</a> • <a href="https://github.com/york9675/Tempo-Sync" target="_blank" rel="noopener noreferrer" class="link-text">View Source on GitHub</a> • <a href="https://www.buymeacoffee.com/york0524" target="_blank" rel="noopener noreferrer" class="link-text">Buy Me a Coffee</a></p>
+                <p class="footer-line"><a href="https://github.com/york9675/Tempo-Sync/releases/tag/v3.2.0" target="_blank" rel="noopener noreferrer" class="link-text">v3.2.0</a> • <a href="https://github.com/york9675/Tempo-Sync" target="_blank" rel="noopener noreferrer" class="link-text">View Source on GitHub</a> • <a href="https://www.buymeacoffee.com/york0524" target="_blank" rel="noopener noreferrer" class="link-text">Buy Me a Coffee</a></p>
             </div>
         </footer>
     </div>
@@ -237,6 +237,127 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
             </div>
             <div class="theme-panel__body">
                 <div class="theme-panel__sections" id="themeList" role="list"></div>
+                <div class="theme-panel__custom" id="customThemeSection">
+                    <header class="theme-panel__custom-header">
+                        <div class="custom-theme-title-row">
+                            <h3 class="theme-panel__custom-title">Custom theme</h3>
+                            <span class="custom-theme-badge">
+                                <span class="custom-theme-badge-text">BETA</span>
+                            </span>
+                            <span class="custom-theme-badge" id="customThemeBadge" hidden>
+                                <i class="fa-solid fa-check" aria-hidden="true"></i>
+                                <span class="custom-theme-badge-text">Active</span>
+                            </span>
+                        </div>
+                        <p class="theme-panel__custom-subtitle">Start with your accent color, then fine-tune every tone for a personalized palette.</p>
+                    </header>
+                    <form class="custom-theme-form" id="customThemeForm" novalidate>
+                        <fieldset class="custom-theme-basic">
+                            <legend class="sr-only">Accent color</legend>
+                            <div class="custom-theme-field">
+                                <label for="customThemeColor">Accent color</label>
+                                <div class="custom-theme-inputs custom-theme-inputs--with-action">
+                                    <input type="color" id="customThemeColor" name="customThemeColor" value="#3b82f6" aria-describedby="customThemeHint">
+                                    <input type="text" id="customThemeHex" name="customThemeHex" maxlength="9" placeholder="#3b82f6" inputmode="text" autocomplete="off" spellcheck="false">
+                                        <button type="button" class="custom-theme-field-reset custom-theme-field-reset--accent" id="customThemeReset" aria-label="Reset custom theme colors" title="Reset custom theme">
+                                            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                        </button>
+                                </div>
+                                <p class="custom-theme-hint" id="customThemeHint">Accepts hex codes like #1f2937 or shorthand values (#123).</p>
+                            </div>
+                        </fieldset>
+                        <div class="custom-theme-advanced">
+                            <button type="button" class="custom-theme-advanced-toggle" id="customThemeAdvancedToggle" aria-expanded="false" aria-controls="customThemeAdvancedFields">
+                                <span class="custom-theme-advanced-text">
+                                    <span class="custom-theme-advanced-label">Advanced palette</span>
+                                    <span class="custom-theme-advanced-subtitle">Optional overrides for background, text, borders, and more</span>
+                                </span>
+                                <i class="fa-solid fa-caret-down" aria-hidden="true"></i>
+                            </button>
+                            <div class="custom-theme-advanced-fields" id="customThemeAdvancedFields" hidden>
+                                <div class="custom-theme-advanced-fields-inner">
+                                    <p class="custom-theme-hint custom-theme-hint--advanced">Leave fields blank to let Tempo Sync auto-generate them from your accent.</p>
+                                    <div class="custom-theme-advanced-grid">
+                                    <div class="custom-theme-field custom-theme-field--compact">
+                                        <label for="customThemePrimaryHover">Accent hover</label>
+                                            <div class="custom-theme-inputs custom-theme-inputs--with-action">
+                                            <input type="color" id="customThemePrimaryHover" name="customThemePrimaryHover" value="#2563eb">
+                                            <input type="text" id="customThemePrimaryHoverHex" name="customThemePrimaryHoverHex" maxlength="9" placeholder="Optional override" inputmode="text" autocomplete="off" spellcheck="false">
+                                                <button type="button" class="custom-theme-field-reset" data-field-key="primaryHover" aria-label="Reset accent hover color">
+                                                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                                </button>
+                                        </div>
+                                    </div>
+                                    <div class="custom-theme-field custom-theme-field--compact">
+                                        <label for="customThemeBackground">Background</label>
+                                            <div class="custom-theme-inputs custom-theme-inputs--with-action">
+                                            <input type="color" id="customThemeBackground" name="customThemeBackground" value="#f9fafb">
+                                            <input type="text" id="customThemeBackgroundHex" name="customThemeBackgroundHex" maxlength="9" placeholder="Optional override" inputmode="text" autocomplete="off" spellcheck="false">
+                                                <button type="button" class="custom-theme-field-reset" data-field-key="background" aria-label="Reset background color">
+                                                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                                </button>
+                                        </div>
+                                    </div>
+                                    <div class="custom-theme-field custom-theme-field--compact">
+                                        <label for="customThemeContainer">Surface</label>
+                                            <div class="custom-theme-inputs custom-theme-inputs--with-action">
+                                            <input type="color" id="customThemeContainer" name="customThemeContainer" value="#ffffff">
+                                            <input type="text" id="customThemeContainerHex" name="customThemeContainerHex" maxlength="9" placeholder="Optional override" inputmode="text" autocomplete="off" spellcheck="false">
+                                                <button type="button" class="custom-theme-field-reset" data-field-key="container" aria-label="Reset surface color">
+                                                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                                </button>
+                                        </div>
+                                    </div>
+                                    <div class="custom-theme-field custom-theme-field--compact">
+                                        <label for="customThemeText">Primary text</label>
+                                            <div class="custom-theme-inputs custom-theme-inputs--with-action">
+                                            <input type="color" id="customThemeText" name="customThemeText" value="#1f2937">
+                                            <input type="text" id="customThemeTextHex" name="customThemeTextHex" maxlength="9" placeholder="Optional override" inputmode="text" autocomplete="off" spellcheck="false">
+                                                <button type="button" class="custom-theme-field-reset" data-field-key="text" aria-label="Reset primary text color">
+                                                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                                </button>
+                                        </div>
+                                    </div>
+                                    <div class="custom-theme-field custom-theme-field--compact">
+                                        <label for="customThemeTextSecondary">Secondary text</label>
+                                            <div class="custom-theme-inputs custom-theme-inputs--with-action">
+                                            <input type="color" id="customThemeTextSecondary" name="customThemeTextSecondary" value="#6b7280">
+                                            <input type="text" id="customThemeTextSecondaryHex" name="customThemeTextSecondaryHex" maxlength="9" placeholder="Optional override" inputmode="text" autocomplete="off" spellcheck="false">
+                                                <button type="button" class="custom-theme-field-reset" data-field-key="textSecondary" aria-label="Reset secondary text color">
+                                                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                                </button>
+                                        </div>
+                                    </div>
+                                    <div class="custom-theme-field custom-theme-field--compact">
+                                        <label for="customThemeBorder">Border</label>
+                                            <div class="custom-theme-inputs custom-theme-inputs--with-action">
+                                            <input type="color" id="customThemeBorder" name="customThemeBorder" value="#e5e7eb">
+                                            <input type="text" id="customThemeBorderHex" name="customThemeBorderHex" maxlength="9" placeholder="Optional override" inputmode="text" autocomplete="off" spellcheck="false">
+                                                <button type="button" class="custom-theme-field-reset" data-field-key="border" aria-label="Reset border color">
+                                                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                                </button>
+                                        </div>
+                                    </div>
+                                    <div class="custom-theme-field custom-theme-field--compact">
+                                        <label for="customThemeFlash">Downbeat flash</label>
+                                            <div class="custom-theme-inputs custom-theme-inputs--with-action">
+                                            <input type="color" id="customThemeFlash" name="customThemeFlash" value="#60a5fa">
+                                            <input type="text" id="customThemeFlashHex" name="customThemeFlashHex" maxlength="9" placeholder="Optional override" inputmode="text" autocomplete="off" spellcheck="false">
+                                                <button type="button" class="custom-theme-field-reset" data-field-key="flash" aria-label="Reset downbeat flash color">
+                                                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                                </button>
+                                        </div>
+                                    </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="custom-theme-actions">
+                            <button type="submit" class="preset-save-button">Apply theme</button>
+                        </div>
+                        <p class="custom-theme-error" id="customThemeError" role="alert" aria-live="polite" hidden></p>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

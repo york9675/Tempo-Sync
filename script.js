@@ -89,10 +89,86 @@ class Metronome {
         this.themePanelBackdrop = this.themePanel?.querySelector('[data-theme-close]') || null;
         this.themeCloseButton = document.getElementById('themeCloseButton');
         this.themeListElement = document.getElementById('themeList');
+        this.customThemeSection = document.getElementById('customThemeSection');
+        this.customThemeForm = document.getElementById('customThemeForm');
+        this.customThemeColorInput = document.getElementById('customThemeColor');
+        this.customThemeHexInput = document.getElementById('customThemeHex');
+        this.customThemeResetButton = document.getElementById('customThemeReset');
+        this.customThemeError = document.getElementById('customThemeError');
+        this.customThemeBadge = document.getElementById('customThemeBadge');
+        this.customThemeAdvancedToggle = document.getElementById('customThemeAdvancedToggle');
+        this.customThemeAdvancedFields = document.getElementById('customThemeAdvancedFields');
         this.boundThemeKeyHandler = (event) => {
             if (event.key === 'Escape' && this.isThemePanelOpen()) {
                 this.closeThemePanel();
             }
+        };
+        this.defaultCustomAccent = '#3b82f6';
+        this.customThemeVariableMap = {
+            accent: '--custom-primary-color',
+            primaryHover: '--custom-primary-hover-color',
+            background: '--custom-bg-color',
+            container: '--custom-container-bg-color',
+            text: '--custom-text-color',
+            textSecondary: '--custom-text-secondary-color',
+            border: '--custom-border-color',
+            flash: '--custom-flash-color',
+        };
+        this.customThemeFieldConfig = [
+            {
+                key: 'primaryHover',
+                label: 'Accent hover',
+                colorInputId: 'customThemePrimaryHover',
+                textInputId: 'customThemePrimaryHoverHex',
+                cssVar: this.customThemeVariableMap.primaryHover,
+            },
+            {
+                key: 'background',
+                label: 'Background',
+                colorInputId: 'customThemeBackground',
+                textInputId: 'customThemeBackgroundHex',
+                cssVar: this.customThemeVariableMap.background,
+            },
+            {
+                key: 'container',
+                label: 'Surface',
+                colorInputId: 'customThemeContainer',
+                textInputId: 'customThemeContainerHex',
+                cssVar: this.customThemeVariableMap.container,
+            },
+            {
+                key: 'text',
+                label: 'Primary text',
+                colorInputId: 'customThemeText',
+                textInputId: 'customThemeTextHex',
+                cssVar: this.customThemeVariableMap.text,
+            },
+            {
+                key: 'textSecondary',
+                label: 'Secondary text',
+                colorInputId: 'customThemeTextSecondary',
+                textInputId: 'customThemeTextSecondaryHex',
+                cssVar: this.customThemeVariableMap.textSecondary,
+            },
+            {
+                key: 'border',
+                label: 'Border',
+                colorInputId: 'customThemeBorder',
+                textInputId: 'customThemeBorderHex',
+                cssVar: this.customThemeVariableMap.border,
+            },
+            {
+                key: 'flash',
+                label: 'Downbeat flash',
+                colorInputId: 'customThemeFlash',
+                textInputId: 'customThemeFlashHex',
+                cssVar: this.customThemeVariableMap.flash,
+            },
+        ];
+        this.customThemeAdvancedInputs = {};
+        this.customTheme = {
+            accent: this.defaultCustomAccent,
+            overrides: {},
         };
         this.themeCatalog = this.createThemeCatalog();
 
@@ -109,6 +185,7 @@ class Metronome {
         this.setupEventListeners();
         this.setupThemeControls();
         this.setupThemePanel();
+        this.setupCustomThemeControls();
         this.setupPresetControls();
         this.showPresetForm(
             {
@@ -497,6 +574,556 @@ class Metronome {
             }
             const activeButton = this.themeListElement?.querySelector('.theme-item--active');
             activeButton?.focus?.();
+        });
+    }
+
+    setupCustomThemeControls() {
+        if (!this.customThemeForm) {
+            return;
+        }
+
+        this.customThemeForm.addEventListener('submit', (event) => this.handleCustomThemeSubmit(event));
+
+        this.customThemeColorInput?.addEventListener('input', (event) => {
+            const value = typeof event.target.value === 'string' ? event.target.value.toLowerCase() : '';
+            const normalized = this.normalizeHexColor(value) || value;
+            if (this.customThemeHexInput) {
+                this.customThemeHexInput.value = normalized;
+            }
+            this.clearCustomThemeError();
+            this.previewAdvancedPaletteForAccent(normalized);
+        });
+
+        this.customThemeHexInput?.addEventListener('input', () => {
+            this.clearCustomThemeError();
+            const candidate = this.customThemeHexInput?.value;
+            if (typeof candidate === 'string') {
+                this.previewAdvancedPaletteForAccent(candidate);
+            }
+        });
+
+        this.customThemeHexInput?.addEventListener('blur', () => this.commitCustomHexInput());
+        this.customThemeHexInput?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                this.handleCustomThemeSubmit(event);
+            }
+        });
+
+        this.customThemeResetButton?.addEventListener('click', (event) => {
+            event.preventDefault();
+            this.resetCustomTheme();
+        });
+
+        if (this.customThemeAdvancedToggle) {
+            this.customThemeAdvancedToggle.addEventListener('click', () => {
+                const expanded = this.customThemeAdvancedToggle.getAttribute('aria-expanded') === 'true';
+                this.setAdvancedFieldsVisibility(!expanded);
+            });
+        }
+
+        this.customThemeAdvancedInputs = this.customThemeFieldConfig.reduce((accumulator, field) => {
+            const colorInput = document.getElementById(field.colorInputId);
+            const textInput = document.getElementById(field.textInputId);
+            const resetButton = document.querySelector(`.custom-theme-field-reset[data-field-key="${field.key}"]`);
+
+            if (colorInput) {
+                colorInput.dataset.themeFieldKey = field.key;
+                colorInput.addEventListener('input', (event) => this.handleAdvancedColorInput(field.key, event));
+            }
+
+            if (textInput) {
+                textInput.dataset.themeFieldKey = field.key;
+                textInput.addEventListener('input', () => {
+                    this.clearCustomThemeError();
+                    this.updateAdvancedResetButtonState(field.key);
+                });
+                textInput.addEventListener('blur', () => this.commitAdvancedHexInput(field.key));
+                textInput.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        this.handleCustomThemeSubmit(event);
+                    }
+                });
+            }
+
+            if (resetButton) {
+                resetButton.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    this.resetAdvancedField(field.key);
+                });
+            }
+
+            accumulator[field.key] = {
+                colorInput,
+                textInput,
+                cssVar: field.cssVar,
+                label: field.label,
+                resetButton,
+            };
+            return accumulator;
+        }, {});
+
+        this.syncCustomThemeInputs(this.customTheme);
+        this.clearCustomThemeError();
+        this.setAdvancedFieldsVisibility(false);
+        this.updateCustomThemeSectionState();
+    }
+
+    focusCustomThemeInput() {
+        if (this.customThemeHexInput) {
+            this.customThemeHexInput.focus();
+            this.customThemeHexInput.select?.();
+            return;
+        }
+        this.customThemeColorInput?.focus?.();
+    }
+
+    setAdvancedFieldsVisibility(show) {
+        if (!this.customThemeAdvancedFields || !this.customThemeAdvancedToggle) {
+            return;
+        }
+
+        const fields = this.customThemeAdvancedFields;
+        const toggle = this.customThemeAdvancedToggle;
+
+        const clearTransitionState = () => {
+            fields.classList.remove('is-transitioning');
+        };
+
+        fields.setAttribute('aria-hidden', (!show).toString());
+
+        const handleCloseEnd = (event) => {
+            if (event?.target !== fields) {
+                return;
+            }
+            fields.hidden = true;
+            clearTransitionState();
+            fields.removeEventListener('transitionend', handleCloseEnd);
+        };
+
+        const handleOpenEnd = (event) => {
+            if (event?.target !== fields) {
+                return;
+            }
+            clearTransitionState();
+            fields.removeEventListener('transitionend', handleOpenEnd);
+        };
+
+        if (show) {
+            const accent = this.getCurrentAccentDraft();
+            fields.hidden = false;
+            fields.classList.add('is-transitioning');
+            fields.classList.remove('is-open');
+            // Force reflow so the transition plays when adding the class.
+            void fields.offsetHeight;
+            fields.classList.add('is-open');
+            fields.addEventListener('transitionend', handleOpenEnd);
+            window.setTimeout(() => handleOpenEnd({ target: fields }), 320);
+            this.previewAdvancedPaletteForAccent(accent);
+        } else {
+            if (!fields.hidden) {
+                fields.classList.add('is-transitioning');
+                fields.classList.remove('is-open');
+                fields.addEventListener('transitionend', handleCloseEnd);
+                window.setTimeout(() => handleCloseEnd({ target: fields }), 320);
+            } else {
+                fields.classList.remove('is-open');
+            }
+        }
+
+        toggle.setAttribute('aria-expanded', show.toString());
+        toggle.classList.toggle('is-open', show);
+        this.customThemeSection?.classList.toggle('custom-theme--advanced-open', show);
+    }
+
+    updateCustomThemeSectionState() {
+        if (!this.customThemeSection) {
+            return;
+        }
+
+        const isActive = this.currentTheme === 'custom';
+        this.customThemeSection.classList.toggle('is-active', isActive);
+        if (this.customThemeBadge) {
+            this.customThemeBadge.hidden = !isActive;
+        }
+    }
+
+    syncCustomThemeInputs(theme = this.customTheme) {
+        const accent = this.normalizeHexColor(theme?.accent) || this.defaultCustomAccent;
+
+        if (this.customThemeColorInput) {
+            this.customThemeColorInput.value = accent;
+        }
+
+        if (this.customThemeHexInput) {
+            this.customThemeHexInput.value = accent;
+            this.customThemeHexInput.placeholder = accent;
+        }
+
+        this.syncAdvancedCustomThemeInputs(theme?.overrides || {}, accent);
+    }
+
+    syncAdvancedCustomThemeInputs(overrides = {}, accent = this.customTheme?.accent || this.defaultCustomAccent) {
+        const palette = this.buildCustomThemePalette({ accent, overrides: {} });
+        Object.entries(this.customThemeAdvancedInputs || {}).forEach(([key, entry]) => {
+            if (!entry) {
+                return;
+            }
+
+            const override = overrides[key] || '';
+            const fallback = palette[key] || accent;
+
+            if (entry.colorInput) {
+                entry.colorInput.value = override || fallback;
+            }
+
+            if (entry.textInput) {
+                entry.textInput.value = override;
+                entry.textInput.placeholder = fallback;
+            }
+
+            this.updateAdvancedResetButtonState(key);
+        });
+    }
+
+    updateAdvancedResetButtonState(key) {
+        const entry = this.customThemeAdvancedInputs?.[key];
+        if (!entry?.resetButton) {
+            return;
+        }
+
+        const hasOverride = Boolean(entry.textInput?.value?.trim());
+        entry.resetButton.disabled = !hasOverride;
+        entry.resetButton.classList.toggle('is-active', hasOverride);
+    }
+
+    previewAdvancedPaletteForAccent(accentCandidate) {
+        if (!this.customThemeAdvancedInputs) {
+            return;
+        }
+
+        const accent = this.normalizeHexColor(accentCandidate) || this.getCurrentAccentDraft();
+        const palette = this.buildCustomThemePalette({ accent, overrides: {} });
+
+        Object.entries(this.customThemeAdvancedInputs).forEach(([key, entry]) => {
+            if (!entry) {
+                return;
+            }
+
+            const hasOverride = Boolean(entry.textInput?.value?.trim());
+            const fallback = palette[key] || accent;
+
+            if (!hasOverride && entry.colorInput) {
+                entry.colorInput.value = fallback;
+            }
+
+            if (entry.textInput) {
+                entry.textInput.placeholder = fallback;
+            }
+
+            this.updateAdvancedResetButtonState(key);
+        });
+    }
+
+    getCurrentAccentDraft() {
+        const hexValue = this.customThemeHexInput?.value?.trim();
+        const colorValue = this.customThemeColorInput?.value;
+        return (
+            this.normalizeHexColor(hexValue) ||
+            this.normalizeHexColor(colorValue) ||
+            this.customTheme?.accent ||
+            this.defaultCustomAccent
+        );
+    }
+
+    resetAdvancedField(key) {
+        const entry = this.customThemeAdvancedInputs?.[key];
+        if (!entry) {
+            return;
+        }
+
+        const accent = this.getCurrentAccentDraft();
+        const palette = this.buildCustomThemePalette({ accent, overrides: {} });
+        const fallback = palette[key] || accent;
+
+        if (entry.textInput) {
+            entry.textInput.value = '';
+            entry.textInput.placeholder = fallback;
+        }
+
+        if (entry.colorInput) {
+            entry.colorInput.value = fallback;
+        }
+
+        this.updateAdvancedResetButtonState(key);
+        this.clearCustomThemeError();
+    }
+
+    showCustomThemeError(message) {
+        if (!this.customThemeError) {
+            return;
+        }
+        this.customThemeError.hidden = false;
+        this.customThemeError.textContent = message;
+    }
+
+    clearCustomThemeError() {
+        if (!this.customThemeError) {
+            return;
+        }
+        this.customThemeError.hidden = true;
+        this.customThemeError.textContent = '';
+    }
+
+    handleCustomThemeSubmit(event) {
+        event.preventDefault();
+        const rawAccent = this.customThemeHexInput?.value?.trim() || this.customThemeColorInput?.value || '';
+        const accent = this.normalizeHexColor(rawAccent);
+        if (!accent) {
+            this.showCustomThemeError('Please enter a valid hex color like #1f2937.');
+            return;
+        }
+
+        const overridesResult = this.collectCustomThemeOverrides();
+        if (!overridesResult.success) {
+            this.showCustomThemeError(overridesResult.error || 'Please review your advanced colors.');
+            return;
+        }
+
+        this.clearCustomThemeError();
+        this.updateCustomThemeConfig({ accent, overrides: overridesResult.overrides });
+        this.applyTheme('custom');
+        if (!this.isRestoringSettings) {
+            this.saveSettings();
+        }
+    }
+
+    commitCustomHexInput() {
+        if (!this.customThemeHexInput) {
+            return;
+        }
+        const normalized = this.normalizeHexColor(this.customThemeHexInput.value);
+        if (normalized) {
+            this.customThemeHexInput.value = normalized;
+            if (this.customThemeColorInput) {
+                this.customThemeColorInput.value = normalized;
+            }
+            this.previewAdvancedPaletteForAccent(normalized);
+        } else {
+            this.previewAdvancedPaletteForAccent(this.getCurrentAccentDraft());
+        }
+    }
+
+    handleAdvancedColorInput(key, event) {
+        const entry = this.customThemeAdvancedInputs?.[key];
+        if (!entry || !entry.textInput) {
+            return;
+        }
+
+        const value = typeof event.target.value === 'string' ? event.target.value.toLowerCase() : '';
+        const normalized = this.normalizeHexColor(value) || value;
+        entry.textInput.value = normalized;
+        this.clearCustomThemeError();
+        this.updateAdvancedResetButtonState(key);
+    }
+
+    commitAdvancedHexInput(key) {
+        const entry = this.customThemeAdvancedInputs?.[key];
+        if (!entry || !entry.textInput) {
+            return;
+        }
+
+        const trimmed = entry.textInput.value?.trim();
+        if (!trimmed) {
+            return;
+        }
+
+        const normalized = this.normalizeHexColor(trimmed);
+        if (!normalized) {
+            this.showCustomThemeError(`Please enter a valid hex color for ${entry.label}.`);
+            return;
+        }
+
+        entry.textInput.value = normalized;
+        if (entry.colorInput) {
+            entry.colorInput.value = normalized;
+        }
+        this.updateAdvancedResetButtonState(key);
+    }
+
+    collectCustomThemeOverrides() {
+        const overrides = {};
+        for (const field of this.customThemeFieldConfig) {
+            const entry = this.customThemeAdvancedInputs?.[field.key];
+            if (!entry || !entry.textInput) {
+                continue;
+            }
+
+            const value = entry.textInput.value?.trim();
+            if (!value) {
+                continue;
+            }
+
+            const normalized = this.normalizeHexColor(value);
+            if (!normalized) {
+                return {
+                    success: false,
+                    error: `Please enter a valid hex color for ${entry.label}.`,
+                };
+            }
+
+            overrides[field.key] = normalized;
+            if (entry.colorInput) {
+                entry.colorInput.value = normalized;
+            }
+        }
+
+        return { success: true, overrides };
+    }
+
+    resetCustomTheme() {
+        this.clearCustomThemeError();
+        const shouldReapply = this.currentTheme === 'custom';
+        this.updateCustomThemeConfig({ accent: this.defaultCustomAccent, overrides: {} });
+
+        if (shouldReapply) {
+            this.applyTheme('custom');
+        } else {
+            this.clearCustomThemeProperties();
+        }
+
+        this.syncAdvancedCustomThemeInputs({}, this.defaultCustomAccent);
+
+        if (!this.isRestoringSettings) {
+            this.saveSettings();
+        }
+    }
+
+    updateCustomThemeConfig({ accent = this.customTheme?.accent, overrides = this.customTheme?.overrides } = {}, { applyImmediately = false } = {}) {
+        const normalizedAccent = this.normalizeHexColor(accent) || this.defaultCustomAccent;
+        const normalizedOverrides = this.normalizeCustomOverrides(overrides);
+        this.customTheme = {
+            accent: normalizedAccent,
+            overrides: normalizedOverrides,
+        };
+
+        this.syncCustomThemeInputs(this.customTheme);
+
+        if (applyImmediately) {
+            this.applyCustomThemeProperties();
+        }
+        this.updateCustomThemeSectionState();
+    }
+
+    normalizeHexColor(value) {
+        if (typeof value !== 'string') {
+            return null;
+        }
+        const trimmed = value.trim().toLowerCase();
+        if (!trimmed) {
+            return null;
+        }
+        const hex = trimmed.startsWith('#') ? trimmed.slice(1) : trimmed;
+        if (hex.length === 3 && /^[0-9a-f]{3}$/i.test(hex)) {
+            return `#${hex.split('').map((char) => char + char).join('')}`.toLowerCase();
+        }
+        if (hex.length === 6 && /^[0-9a-f]{6}$/i.test(hex)) {
+            return `#${hex}`.toLowerCase();
+        }
+        return null;
+    }
+
+    normalizeCustomTheme(theme) {
+        const accent = this.normalizeHexColor(theme?.accent) || this.defaultCustomAccent;
+        const overrides = this.normalizeCustomOverrides(theme?.overrides || {});
+        return { accent, overrides };
+    }
+
+    normalizeCustomOverrides(overrides) {
+        if (!overrides || typeof overrides !== 'object') {
+            return {};
+        }
+
+        const result = {};
+        this.customThemeFieldConfig.forEach((field) => {
+            const normalized = this.normalizeHexColor(overrides[field.key]);
+            if (normalized) {
+                result[field.key] = normalized;
+            }
+        });
+        return result;
+    }
+
+    buildCustomThemePalette(theme = this.customTheme) {
+        const accent = this.normalizeHexColor(theme?.accent) || this.defaultCustomAccent;
+        const overrides = this.normalizeCustomOverrides(theme?.overrides || {});
+
+        const palette = {
+            accent,
+            primaryHover: overrides.primaryHover || this.mixColors(accent, '#ffffff', 0.25),
+            background: overrides.background || this.mixColors('#f9fafb', accent, 0.12),
+            container: overrides.container || this.mixColors('#ffffff', accent, 0.08),
+            text: overrides.text || this.mixColors('#111827', accent, 0.18),
+            textSecondary: overrides.textSecondary || this.mixColors('#475569', accent, 0.24),
+            border: overrides.border || this.mixColors('#dbeafe', accent, 0.2),
+            flash: overrides.flash || this.mixColors(accent, '#ffffff', 0.35),
+        };
+
+        return palette;
+    }
+
+    mixColors(colorA, colorB, weight = 0.5) {
+        const normalizedA = this.normalizeHexColor(colorA) || '#000000';
+        const normalizedB = this.normalizeHexColor(colorB) || '#ffffff';
+        const rgbA = this.hexToRgb(normalizedA);
+        const rgbB = this.hexToRgb(normalizedB);
+        const w = this.clamp(weight, 0, 1);
+
+        const r = Math.round(rgbA.r * (1 - w) + rgbB.r * w);
+        const g = Math.round(rgbA.g * (1 - w) + rgbB.g * w);
+        const b = Math.round(rgbA.b * (1 - w) + rgbB.b * w);
+
+        return this.rgbToHex(r, g, b);
+    }
+
+    hexToRgb(hex) {
+        const normalized = this.normalizeHexColor(hex) || '#000000';
+        const value = normalized.slice(1, 7);
+        const bigint = parseInt(value, 16);
+        const r = (bigint >> 16) & 255;
+        const g = (bigint >> 8) & 255;
+        const b = bigint & 255;
+        return { r, g, b };
+    }
+
+    rgbToHex(r, g, b) {
+        const toHex = (component) => {
+            const clamped = Math.max(0, Math.min(255, component));
+            return clamped.toString(16).padStart(2, '0');
+        };
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+
+    clamp(value, min = 0, max = 1) {
+        return Math.min(Math.max(value, min), max);
+    }
+
+    applyCustomThemeProperties() {
+        const palette = this.buildCustomThemePalette();
+        Object.entries(this.customThemeVariableMap).forEach(([key, cssVar]) => {
+            const value = palette[key];
+            if (value) {
+                document.documentElement.style.setProperty(cssVar, value);
+            } else {
+                document.documentElement.style.removeProperty(cssVar);
+            }
+        });
+    }
+
+    clearCustomThemeProperties() {
+        Object.values(this.customThemeVariableMap).forEach((cssVar) => {
+            document.documentElement.style.removeProperty(cssVar);
         });
     }
 
@@ -1050,26 +1677,35 @@ class Metronome {
 
         const groups = {
             today: [],
+            yesterday: [],
             week: [],
             earlier: [],
         };
 
         sorted.forEach((preset) => {
             const basis = preset.updatedAt || preset.createdAt;
-            const diff = now - basis;
-            const oneDay = 24 * 60 * 60 * 1000;
-            if (diff <= oneDay) {
+            const dayDiff = this.getCalendarDayDifference(basis, now);
+            if (dayDiff <= 0) {
                 groups.today.push(preset);
-            } else if (diff <= oneDay * 7) {
-                groups.week.push(preset);
-            } else {
-                groups.earlier.push(preset);
+                return;
             }
+            if (dayDiff === 1) {
+                groups.yesterday.push(preset);
+                return;
+            }
+            if (dayDiff <= 6) {
+                groups.week.push(preset);
+                return;
+            }
+            groups.earlier.push(preset);
         });
 
         const sections = [];
         if (groups.today.length) {
             sections.push({ title: 'Today', items: groups.today });
+        }
+        if (groups.yesterday.length) {
+            sections.push({ title: 'Yesterday', items: groups.yesterday });
         }
         if (groups.week.length) {
             sections.push({ title: 'This week', items: groups.week });
@@ -1282,9 +1918,31 @@ class Metronome {
             .replace(/'/g, '&#39;');
     }
 
+    getCalendarDayDifference(earlierTimestamp, laterTimestamp = Date.now()) {
+        const earlierMs = Number(earlierTimestamp);
+        const laterMs = Number(laterTimestamp);
+
+        if (!Number.isFinite(earlierMs) || !Number.isFinite(laterMs)) {
+            return 0;
+        }
+
+        const earlierDate = new Date(earlierMs);
+        const laterDate = new Date(laterMs);
+        const earlierUTC = Date.UTC(earlierDate.getFullYear(), earlierDate.getMonth(), earlierDate.getDate());
+        const laterUTC = Date.UTC(laterDate.getFullYear(), laterDate.getMonth(), laterDate.getDate());
+        const millisecondsPerDay = 24 * 60 * 60 * 1000;
+
+        return Math.round((laterUTC - earlierUTC) / millisecondsPerDay);
+    }
+
     formatRelativeTime(timestamp) {
         const now = Date.now();
         const diffMs = now - timestamp;
+
+        if (!Number.isFinite(diffMs) || diffMs < 0) {
+            return 'just now';
+        }
+
         const minutes = Math.floor(diffMs / (60 * 1000));
         if (minutes < 1) {
             return 'just now';
@@ -1295,20 +1953,24 @@ class Metronome {
         if (minutes < 60) {
             return `${minutes} minutes ago`;
         }
+
         const hours = Math.floor(minutes / 60);
-        if (hours === 1) {
-            return '1 hour ago';
-        }
-        if (hours < 24) {
+        const dayDiff = this.getCalendarDayDifference(timestamp, now);
+
+        if (dayDiff === 0) {
+            if (hours === 1) {
+                return '1 hour ago';
+            }
             return `${hours} hours ago`;
         }
-        const days = Math.floor(hours / 24);
-        if (days === 1) {
+
+        if (dayDiff === 1) {
             return 'yesterday';
         }
-        if (days < 7) {
-            return `${days} days ago`;
+        if (dayDiff < 7) {
+            return `${dayDiff} days ago`;
         }
+
         const date = new Date(timestamp);
         return date.toLocaleDateString(undefined, {
             month: 'short',
@@ -1407,6 +2069,7 @@ class Metronome {
 
         const knownThemes = [
             'system',
+            'custom',
             'light',
             'ocean',
             'pink',
@@ -1435,12 +2098,23 @@ class Metronome {
             this.bindSystemThemeListener();
             const prefersDark = this.systemThemeMediaQuery?.matches ?? false;
             this.applySystemTheme(prefersDark);
+            this.clearCustomThemeProperties();
+        } else if (normalized === 'custom') {
+            this.unbindSystemThemeListener();
+            document.documentElement.setAttribute('data-theme', 'custom');
+            this.applyCustomThemeProperties();
         } else {
             this.unbindSystemThemeListener();
             document.documentElement.setAttribute('data-theme', normalized);
+            this.clearCustomThemeProperties();
         }
 
         this.renderThemeList();
+        this.updateCustomThemeSectionState();
+
+        if (normalized === 'custom') {
+            queueMicrotask(() => this.focusCustomThemeInput());
+        }
     }
 
     applySystemTheme(prefersDark) {
@@ -1548,6 +2222,12 @@ class Metronome {
                 return;
             }
 
+            if (settings.customTheme && typeof settings.customTheme === 'object') {
+                this.customTheme = this.normalizeCustomTheme(settings.customTheme);
+            } else {
+                this.customTheme = { accent: this.defaultCustomAccent };
+            }
+
             if (typeof settings.theme === 'string') {
                 this.applyTheme(settings.theme);
             }
@@ -1613,6 +2293,8 @@ class Metronome {
             if (this.themeSelect && this.themeSelect.value !== this.currentTheme) {
                 this.themeSelect.value = this.currentTheme;
             }
+            this.syncCustomThemeInputs(this.customTheme);
+            this.updateCustomThemeSectionState();
             this.refreshPresetUI();
         }
     }
@@ -1629,6 +2311,7 @@ class Metronome {
                 beatsPerMeasure: this.beatsPerMeasure,
                 beatUnit: this.beatUnit,
                 theme: this.currentTheme || 'system',
+                customTheme: this.customTheme,
                 presets: this.presets,
                 presetViewMode: this.presetViewMode,
                 presetGroupByTime: this.presetGroupByTime,
