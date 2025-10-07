@@ -1244,7 +1244,6 @@ class Metronome {
         if (hex.length === 6 && /^[0-9a-f]{6}$/i.test(hex)) {
             return `#${hex}`.toLowerCase();
         }
-        // 8-digit hex codes with alpha are intentionally unsupported to keep color mixing consistent.
         return null;
     }
 
@@ -2545,7 +2544,8 @@ class Metronome {
             return;
         }
 
-    const presetsPayload = this.extractPresetArray(data);
+        const presetsPayload = this.extractPresetArray(data);
+        
         if (!presetsPayload || !presetsPayload.length) {
             await this.showAlert('Import Presets Failed', 'No presets were found in the selected file.', [
                 { text: 'OK', style: 'primary', primary: true },
