@@ -29,6 +29,7 @@
   - **Custom theme:** Create your own theme by selecting colors for accent, accent hover, background, surface, primary text, secondary text, border, and downbeat flash elements.
   - **System theme:** Automatically follows your device's light/dark preference
 - **Custom Presets:** Save and manage your favorite tempo and time signature presets for quick access.
+- **Import & Export:** Import or export your presets and themes as JSON files for easy sharing and backup.
 - **Persistent Settings:** Automatically save and restore your last-used tempo, volume, time signature, and theme preferences.
 - **Responsive Design:** Works beautifully on both desktop and mobile devices, with improved mobile layout.
 - **Accessibility Features:** Full keyboard navigation support, ARIA labels.

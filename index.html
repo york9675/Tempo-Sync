@@ -110,7 +110,7 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
         <footer>
             <div class="footer-lines">
                 <p class="footer-line">&copy; 2025 <a href="https://york9675.github.io/website/" target="_blank" rel="noopener noreferrer" class="link-text">York Development</a>. Made with ❤️ in Taiwan</p>
-                <p class="footer-line"><a href="https://github.com/york9675/Tempo-Sync/releases/tag/v3.2.0" target="_blank" rel="noopener noreferrer" class="link-text">v3.2.0</a> • <a href="https://github.com/york9675/Tempo-Sync" target="_blank" rel="noopener noreferrer" class="link-text">View Source on GitHub</a> • <a href="https://www.buymeacoffee.com/york0524" target="_blank" rel="noopener noreferrer" class="link-text">Buy Me a Coffee</a></p>
+                <p class="footer-line"><a href="https://github.com/york9675/Tempo-Sync/releases/tag/v3.3.0" target="_blank" rel="noopener noreferrer" class="link-text">v3.3.0</a> • <a href="https://github.com/york9675/Tempo-Sync" target="_blank" rel="noopener noreferrer" class="link-text">View Source on GitHub</a> • <a href="https://www.buymeacoffee.com/york0524" target="_blank" rel="noopener noreferrer" class="link-text">Buy Me a Coffee</a></p>
             </div>
         </footer>
     </div>
@@ -144,7 +144,7 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                         </button>
                         <form class="preset-form" id="presetForm" hidden>
                         <div class="preset-form-row">
-                            <label for="presetTitleInput" class="preset-field-label">Title</label>
+                            <label for="presetTitleInput" class="preset-form-header">Title</label>
                             <input type="text" id="presetTitleInput" name="presetTitle" required maxlength="40" placeholder="Practice groove">
                         </div>
                         <div class="preset-form-row preset-form-grid">
@@ -202,16 +202,43 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                         </div>
                         </form>
                     </div>
+                    <div class="io-group" id="presetIoControls">
+                        <button type="button" class="preset-action-button preset-action-button--with-chevron" id="presetIoToggle" aria-expanded="false" aria-controls="presetIoPanel">
+                            <i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i>
+                            <span class="preset-action-button__label">Import &amp; Export</span>
+                            <i class="fa-solid fa-caret-down preset-action-button__chevron" aria-hidden="true"></i>
+                        </button>
+                        <div class="io-panel" id="presetIoPanel" hidden aria-hidden="true">
+                            <div class="io-panel__actions">
+                                <button type="button" class="io-panel__export-button" id="presetExportButton">
+                                    <i class="fa-solid fa-upload" aria-hidden="true"></i>
+                                    <span>Export Presets</span>
+                                </button>
+                            </div>
+                            <div class="io-dropzone" id="presetDropZone" role="button" tabindex="0" aria-describedby="presetDropHint">
+                                <div class="io-dropzone__icon" aria-hidden="true">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                                </div>
+                                <div class="io-dropzone__content">
+                                    <strong>Drop preset JSON here</strong>
+                                    <span class="io-dropzone__separator">or</span>
+                                    <button type="button" class="io-dropzone__browse" id="presetImportButton">Browse Files</button>
+                                </div>
+                            </div>
+                            <p class="io-dropzone__hint" id="presetDropHint">Supports Tempo Sync preset exports (.json). You can merge or replace after reviewing the prompt.</p>
+                            <input type="file" id="presetImportInput" name="presetImportInput" accept="application/json" hidden aria-hidden="true">
+                        </div>
+                    </div>
                     <div class="preset-sort">
                         <label for="presetSortSelect">Sort</label>
                         <div class="preset-sort-controls">
                             <select id="presetSortSelect" name="presetSort">
-                                <option value="time">Sort by time</option>
-                                <option value="custom">Custom order</option>
+                                <option value="time">Sort by Time</option>
+                                <option value="custom">Custom Order</option>
                             </select>
                             <label class="preset-group-toggle" id="presetGroupToggle" hidden>
                                 <input type="checkbox" id="presetGroupByTime" name="presetGroupByTime">
-                                <span>Group by time</span>
+                                <span>Group by Time</span>
                             </label>
                         </div>
                     </div>
@@ -240,7 +267,7 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                 <div class="theme-panel__custom" id="customThemeSection">
                     <header class="theme-panel__custom-header">
                         <div class="custom-theme-title-row">
-                            <h3 class="theme-panel__custom-title">Custom theme</h3>
+                            <h3 class="theme-panel__custom-title">Custom Theme</h3>
                             <span class="custom-theme-badge">
                                 <span class="custom-theme-badge-text">BETA</span>
                             </span>
@@ -253,9 +280,9 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                     </header>
                     <form class="custom-theme-form" id="customThemeForm" novalidate>
                         <fieldset class="custom-theme-basic">
-                            <legend class="sr-only">Accent color</legend>
+                            <legend class="sr-only">Accent Color</legend>
                             <div class="custom-theme-field">
-                                <label for="customThemeColor">Accent color</label>
+                                <label for="customThemeColor">Accent Color</label>
                                 <div class="custom-theme-inputs custom-theme-inputs--with-action">
                                     <input type="color" id="customThemeColor" name="customThemeColor" value="#3b82f6" aria-describedby="customThemeHint">
                                     <input type="text" id="customThemeHex" name="customThemeHex" maxlength="9" placeholder="#3b82f6" inputmode="text" autocomplete="off" spellcheck="false">
@@ -269,7 +296,7 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                         <div class="custom-theme-advanced">
                             <button type="button" class="custom-theme-advanced-toggle" id="customThemeAdvancedToggle" aria-expanded="false" aria-controls="customThemeAdvancedFields">
                                 <span class="custom-theme-advanced-text">
-                                    <span class="custom-theme-advanced-label">Advanced palette</span>
+                                    <span class="custom-theme-advanced-label">Advanced Palette</span>
                                     <span class="custom-theme-advanced-subtitle">Optional overrides for background, text, borders, and more</span>
                                 </span>
                                 <i class="fa-solid fa-caret-down" aria-hidden="true"></i>
@@ -279,7 +306,7 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                                     <p class="custom-theme-hint custom-theme-hint--advanced">Leave fields blank to let Tempo Sync auto-generate them from your accent.</p>
                                     <div class="custom-theme-advanced-grid">
                                     <div class="custom-theme-field custom-theme-field--compact">
-                                        <label for="customThemePrimaryHover">Accent hover</label>
+                                        <label for="customThemePrimaryHover">Accent Hover</label>
                                             <div class="custom-theme-inputs custom-theme-inputs--with-action">
                                             <input type="color" id="customThemePrimaryHover" name="customThemePrimaryHover" value="#2563eb">
                                             <input type="text" id="customThemePrimaryHoverHex" name="customThemePrimaryHoverHex" maxlength="9" placeholder="Optional override" inputmode="text" autocomplete="off" spellcheck="false">
@@ -309,7 +336,7 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                                         </div>
                                     </div>
                                     <div class="custom-theme-field custom-theme-field--compact">
-                                        <label for="customThemeText">Primary text</label>
+                                        <label for="customThemeText">Primary Text</label>
                                             <div class="custom-theme-inputs custom-theme-inputs--with-action">
                                             <input type="color" id="customThemeText" name="customThemeText" value="#1f2937">
                                             <input type="text" id="customThemeTextHex" name="customThemeTextHex" maxlength="9" placeholder="Optional override" inputmode="text" autocomplete="off" spellcheck="false">
@@ -319,7 +346,7 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                                         </div>
                                     </div>
                                     <div class="custom-theme-field custom-theme-field--compact">
-                                        <label for="customThemeTextSecondary">Secondary text</label>
+                                        <label for="customThemeTextSecondary">Secondary Text</label>
                                             <div class="custom-theme-inputs custom-theme-inputs--with-action">
                                             <input type="color" id="customThemeTextSecondary" name="customThemeTextSecondary" value="#6b7280">
                                             <input type="text" id="customThemeTextSecondaryHex" name="customThemeTextSecondaryHex" maxlength="9" placeholder="Optional override" inputmode="text" autocomplete="off" spellcheck="false">
@@ -339,7 +366,7 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                                         </div>
                                     </div>
                                     <div class="custom-theme-field custom-theme-field--compact">
-                                        <label for="customThemeFlash">Downbeat flash</label>
+                                        <label for="customThemeFlash">Downbeat Flash</label>
                                             <div class="custom-theme-inputs custom-theme-inputs--with-action">
                                             <input type="color" id="customThemeFlash" name="customThemeFlash" value="#60a5fa">
                                             <input type="text" id="customThemeFlashHex" name="customThemeFlashHex" maxlength="9" placeholder="Optional override" inputmode="text" autocomplete="off" spellcheck="false">
@@ -353,10 +380,37 @@ by Porter Robi(⚬⃔⚬ℕ⚬⃔⚬)son
                             </div>
                         </div>
                         <div class="custom-theme-actions">
-                            <button type="submit" class="preset-save-button">Apply theme</button>
+                            <button type="submit" class="preset-save-button">Apply Theme</button>
                         </div>
                         <p class="custom-theme-error" id="customThemeError" role="alert" aria-live="polite" hidden></p>
                     </form>
+                    <div class="io-group" id="themeIoControls">
+                        <button type="button" class="preset-action-button preset-action-button--with-chevron theme-io-toggle" id="themeIoToggle" aria-expanded="false" aria-controls="themeIoPanel">
+                            <i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i>
+                            <span class="preset-action-button__label">Import &amp; Export</span>
+                            <i class="fa-solid fa-caret-down preset-action-button__chevron" aria-hidden="true"></i>
+                        </button>
+                        <div class="io-panel" id="themeIoPanel" hidden aria-hidden="true">
+                            <div class="io-panel__actions">
+                                <button type="button" class="io-panel__export-button" id="themeExportButton">
+                                    <i class="fa-solid fa-upload" aria-hidden="true"></i>
+                                    <span>Export Custom Theme</span>
+                                </button>
+                            </div>
+                            <div class="io-dropzone" id="themeDropZone" role="button" tabindex="0" aria-describedby="themeDropHint">
+                                <div class="io-dropzone__icon" aria-hidden="true">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                                </div>
+                                <div class="io-dropzone__content">
+                                    <strong>Drop theme JSON here</strong>
+                                    <span class="io-dropzone__separator">or</span>
+                                    <button type="button" class="io-dropzone__browse" id="themeImportButton">Browse Files</button>
+                                </div>
+                            </div>
+                            <p class="io-dropzone__hint" id="themeDropHint">Supports Tempo Sync custom theme exports (.json). Import to sync your palette across devices.</p>
+                            <input type="file" id="themeImportInput" name="themeImportInput" accept="application/json" hidden aria-hidden="true">
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
