@@ -2709,7 +2709,7 @@ class Metronome {
             return createdAt;
         }
 
-        return Math.min(createdAt, updatedAt);
+        return Math.max(createdAt, updatedAt);
     }
 
     getCalendarDayDifference(earlierTimestamp, laterTimestamp = Date.now()) {
