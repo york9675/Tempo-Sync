@@ -1,3 +1,5 @@
+import { themeEntries } from './themeCatalog.js';
+
 class Metronome {
     constructor() {
         this.audioContext = null;
@@ -184,7 +186,7 @@ class Metronome {
             accent: this.defaultCustomAccent,
             overrides: {},
         };
-        this.themeCatalog = this.createThemeCatalog();
+    this.themeCatalog = this.createThemeCatalog(themeEntries);
 
         if (this.volumeValueInput) {
             this.volumeValueInput.value = Math.round(this.volume * 100).toString();
@@ -320,130 +322,13 @@ class Metronome {
         });
     }
 
-    createThemeCatalog() {
-        const entries = [
-            {
-                id: 'system',
-                label: 'System',
-                description: 'Matches your device preference for light or dark mode automatically.',
-                group: 'system',
-                swatches: [],
-            },
-            {
-                id: 'light',
-                label: 'Light',
-                description: 'Balanced whites with classic Tempo Sync blues.',
-                group: 'light',
-                swatches: ['#f9fafb', '#3b82f6', '#1f2937'],
-            },
-            {
-                id: 'ocean',
-                label: 'Ocean',
-                description: 'Coastal blues and deep navy accents.',
-                group: 'light',
-                swatches: ['#e0f7ff', '#0ea5e9', '#0f172a'],
-            },
-            {
-                id: 'pink',
-                label: 'Pink',
-                description: 'Playful rosy gradients with a warm glow.',
-                group: 'light',
-                swatches: ['#fff5f9', '#f472b6', '#831843'],
-            },
-            {
-                id: 'gold',
-                label: 'Gold',
-                description: 'Golden hour warmth for inspired sessions.',
-                group: 'light',
-                swatches: ['#fff9ed', '#f59e0b', '#7c2d12'],
-            },
-            {
-                id: 'sunrise',
-                label: 'Sunrise',
-                description: 'Soft orange gradients made for early practice.',
-                group: 'light',
-                swatches: ['#fff7ed', '#f97316', '#7c2d12'],
-            },
-            {
-                id: 'aurora',
-                label: 'Aurora',
-                description: 'Cool aqua hues inspired by northern skies.',
-                group: 'light',
-                swatches: ['#f0fdfa', '#22d3ee', '#115e59'],
-            },
-            {
-                id: 'lilac',
-                label: 'Lilac',
-                description: 'Lavender tones with a gentle evening glow.',
-                group: 'light',
-                swatches: ['#f6f2e9', '#6366f1', '#312e81'],
-            },
-            {
-                id: 'meadow',
-                label: 'Meadow',
-                description: 'Fresh greens for calm, focused practice.',
-                group: 'light',
-                swatches: ['#f0fdf4', '#22c55e', '#14532d'],
-            },
-            {
-                id: 'dark',
-                label: 'Dark',
-                description: 'A balanced dark mode that keeps details crisp.',
-                group: 'dark',
-                swatches: ['#111827', '#60a5fa', '#f9fafb'],
-            },
-            {
-                id: 'midnight',
-                label: 'Midnight',
-                description: 'Deep navy shadows with frosted highlights.',
-                group: 'dark',
-                swatches: ['#0b1220', '#93c5fd', '#e2e8f0'],
-            },
-            {
-                id: 'oled',
-                label: 'OLED',
-                description: 'True black canvas tailored for OLED displays.',
-                group: 'dark',
-                swatches: ['#000000', '#38bdf8', '#f8fafc'],
-            },
-            {
-                id: 'violet',
-                label: 'Violet',
-                description: 'Vivid purples with neon-inspired accents.',
-                group: 'dark',
-                swatches: ['#1d1530', '#a855f7', '#f5f3ff'],
-            },
-            {
-                id: 'forest',
-                label: 'Forest',
-                description: 'Moody greens for low-light rehearsals.',
-                group: 'dark',
-                swatches: ['#0f1a17', '#34d399', '#d1fae5'],
-            },
-            {
-                id: 'ember',
-                label: 'Ember',
-                description: 'Smoldering reds with ember highlights.',
-                group: 'dark',
-                swatches: ['#1c0f0d', '#fb7185', '#fee2e2'],
-            },
-            {
-                id: 'nebula',
-                label: 'Nebula',
-                description: 'Cosmic blues with airy, galactic light.',
-                group: 'dark',
-                swatches: ['#0a1124', '#7dd3fc', '#e0f2fe'],
-            },
-            {
-                id: 'nocturne',
-                label: 'Nocturne',
-                description: 'Golden nocturnal contrast for late-night grooves.',
-                group: 'dark',
-                swatches: ['#0c0a09', '#facc15', '#fef3c7'],
-            },
-        ];
+    createThemeCatalog(entries = []) {
+        if (!Array.isArray(entries) || entries.length === 0) {
+            console.warn('Tempo Sync: theme entries are missing. The theme catalog will be empty.');
+            return [];
+        }
 
-        return entries.map((entry, index) => ({ ...entry, order: index }));
+        return entries.map((entry, index) => ({ ...entry, order: entry.order ?? index }));
     }
 
     setupThemePanel() {
@@ -2169,7 +2054,7 @@ class Metronome {
         };
 
         sorted.forEach((preset) => {
-            const basis = preset.updatedAt || preset.createdAt;
+            const basis = this.getPresetGroupingTimestamp(preset);
             const dayDiff = this.getCalendarDayDifference(basis, now);
             if (dayDiff <= 0) {
                 groups.today.push(preset);
@@ -2802,6 +2687,29 @@ class Metronome {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    getPresetGroupingTimestamp(preset) {
+        if (!preset || typeof preset !== 'object') {
+            return Date.now();
+        }
+
+        const createdAt = Number.isFinite(Number(preset.createdAt)) ? Number(preset.createdAt) : null;
+        const updatedAt = Number.isFinite(Number(preset.updatedAt)) ? Number(preset.updatedAt) : null;
+
+        if (createdAt === null && updatedAt === null) {
+            return Date.now();
+        }
+
+        if (createdAt === null) {
+            return updatedAt;
+        }
+
+        if (updatedAt === null) {
+            return createdAt;
+        }
+
+        return Math.max(createdAt, updatedAt);
     }
 
     getCalendarDayDifference(earlierTimestamp, laterTimestamp = Date.now()) {
@@ -3722,4 +3630,4 @@ class Metronome {
     }
 }
 
-const metronome = new Metronome();
+window.metronome = new Metronome();
