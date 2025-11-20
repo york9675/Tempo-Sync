@@ -183,7 +183,7 @@ class Metronome {
             accent: this.defaultCustomAccent,
             overrides: {},
         };
-    this.themeCatalog = this.createThemeCatalog(themeEntries);
+        this.themeCatalog = this.createThemeCatalog(themeEntries);
 
         if (this.volumeValueInput) {
             this.volumeValueInput.value = Math.round(this.volume * 100).toString();
