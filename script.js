@@ -1,4 +1,4 @@
-import { themeEntries } from './themeCatalog.js';
+import { themeEntries } from './themes/themeCatalog.js';
 
 class Metronome {
     constructor() {
@@ -22,13 +22,14 @@ class Metronome {
         this.lookahead = this.defaultLookahead;
         this.schedulerId = null;
         this.visualTimeouts = [];
-        this.ioPanelHideTimeouts = new Map();
         this.storageKey = 'tempoSyncSettings';
         this.isRestoringSettings = false;
         this.volumeValueInput = document.getElementById('volumeValueInput');
         this.volumeSlider = document.getElementById('volumeControl');
         this.themeSelect = document.getElementById('themeSelect');
         this.beatDisplayElement = document.getElementById('beatDisplay');
+        this.beatFlashMode = 'downbeat';
+        this.beatFlashInputs = document.querySelectorAll('input[name="beatFlashMode"]');
         this.presetButton = document.getElementById('presetButton');
         this.presetPanel = document.getElementById('presetPanel');
         this.presetPanelBackdrop = this.presetPanel?.querySelector('[data-preset-close]') || null;
@@ -48,12 +49,6 @@ class Metronome {
         this.presetBeatUnitInput = document.getElementById('presetBeatUnitInput');
         this.presetGroupToggle = document.getElementById('presetGroupToggle');
         this.presetGroupByTimeCheckbox = document.getElementById('presetGroupByTime');
-        this.presetIoToggle = document.getElementById('presetIoToggle');
-        this.presetIoPanel = document.getElementById('presetIoPanel');
-        this.presetDropZone = document.getElementById('presetDropZone');
-        this.presetExportButton = document.getElementById('presetExportButton');
-        this.presetImportButton = document.getElementById('presetImportButton');
-        this.presetImportInput = document.getElementById('presetImportInput');
         this.isPresetFormVisible = false;
         this.presetFormHideTimeoutId = null;
         this.presets = [];
@@ -90,19 +85,20 @@ class Metronome {
         this.customAlert = document.getElementById('customAlert');
         this.customAlertTitle = document.getElementById('customAlertTitle');
         this.customAlertMessage = document.getElementById('customAlertMessage');
+        this.customAlertExtra = document.getElementById('customAlertExtra');
         this.customAlertActions = document.getElementById('customAlertActions');
         this.customAlertResolve = null;
         this.customAlertBackdrop = this.customAlert?.querySelector('[data-alert-close]') || null;
         this.customAlertBackdropHandler = null;
-        this.themeButton = document.getElementById('themeButton');
-        this.themePanel = document.getElementById('themePanel');
-        this.themePanelBackdrop = this.themePanel?.querySelector('[data-theme-close]') || null;
-        this.themeCloseButton = document.getElementById('themeCloseButton');
+        this.settingsButton = document.getElementById('settingsButton');
+        this.settingsPanel = document.getElementById('settingsPanel');
+        this.settingsPanelBackdrop = this.settingsPanel?.querySelector('[data-settings-close]') || null;
+        this.settingsCloseButton = document.getElementById('settingsCloseButton');
+        this.settingsTabs = Array.from(document.querySelectorAll('[data-settings-tab]'));
+        this.settingsSections = Array.from(document.querySelectorAll('[data-settings-section]'));
+        this.activeSettingsTab = this.settingsTabs.find((tab) => tab.classList.contains('settings-tab--active'))?.dataset.settingsTab || 'beat';
         this.themeListElement = document.getElementById('themeList');
         this.customThemeSection = document.getElementById('customThemeSection');
-        this.themeIoToggle = document.getElementById('themeIoToggle');
-        this.themeIoPanel = document.getElementById('themeIoPanel');
-        this.themeDropZone = document.getElementById('themeDropZone');
         this.customThemeForm = document.getElementById('customThemeForm');
         this.customThemeColorInput = document.getElementById('customThemeColor');
         this.customThemeHexInput = document.getElementById('customThemeHex');
@@ -111,12 +107,13 @@ class Metronome {
         this.customThemeBadge = document.getElementById('customThemeBadge');
         this.customThemeAdvancedToggle = document.getElementById('customThemeAdvancedToggle');
         this.customThemeAdvancedFields = document.getElementById('customThemeAdvancedFields');
-        this.themeExportButton = document.getElementById('themeExportButton');
-        this.themeImportButton = document.getElementById('themeImportButton');
-        this.themeImportInput = document.getElementById('themeImportInput');
-        this.boundThemeKeyHandler = (event) => {
-            if (event.key === 'Escape' && this.isThemePanelOpen()) {
-                this.closeThemePanel();
+        this.settingsExportButton = document.getElementById('settingsExportButton');
+        this.settingsImportButton = document.getElementById('settingsImportButton');
+        this.settingsImportInput = document.getElementById('settingsImportInput');
+        this.settingsDropZone = document.getElementById('settingsDropZone');
+        this.boundSettingsKeyHandler = (event) => {
+            if (event.key === 'Escape' && this.isSettingsPanelOpen()) {
+                this.closeSettingsPanel();
             }
         };
         this.defaultCustomAccent = '#3b82f6';
@@ -200,13 +197,11 @@ class Metronome {
         this.loadSettings();
         this.setupEventListeners();
         this.setupThemeControls();
-        this.setupThemePanel();
+        this.setupSettingsPanel();
         this.setupCustomThemeControls();
-        this.setupThemeIoControls();
+        this.setupBeatDisplayControls();
+        this.setupDataTransferControls();
         this.setupPresetControls();
-        this.setupImportDragAndDrop();
-        this.setPresetIoPanelVisibility(false, { silent: true });
-        this.setThemeIoPanelVisibility(false, { silent: true });
         this.showPresetForm(
             {
                 title: '',
@@ -331,14 +326,24 @@ class Metronome {
         return entries.map((entry, index) => ({ ...entry, order: entry.order ?? index }));
     }
 
-    setupThemePanel() {
-        if (!this.themeButton || !this.themePanel) {
+    setupSettingsPanel() {
+        if (!this.settingsButton || !this.settingsPanel) {
             return;
         }
 
-        this.themeButton.addEventListener('click', () => this.openThemePanel());
-        this.themeCloseButton?.addEventListener('click', () => this.closeThemePanel());
-        this.themePanelBackdrop?.addEventListener('click', () => this.closeThemePanel());
+        this.settingsButton.addEventListener('click', () => this.openSettingsPanel());
+        this.settingsCloseButton?.addEventListener('click', () => this.closeSettingsPanel());
+        this.settingsPanelBackdrop?.addEventListener('click', () => this.closeSettingsPanel());
+
+        this.settingsTabs.forEach((tab) => {
+            tab.addEventListener('click', () => this.activateSettingsTab(tab.dataset.settingsTab));
+            tab.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    this.activateSettingsTab(tab.dataset.settingsTab);
+                }
+            });
+        });
 
         this.themeListElement?.addEventListener('click', (event) => {
             const target = event.target.closest('[data-theme-id]');
@@ -360,49 +365,39 @@ class Metronome {
         this.renderThemeList();
     }
 
-    isThemePanelOpen() {
-        return this.themePanel?.classList.contains('is-open') ?? false;
+    isSettingsPanelOpen() {
+        return this.settingsPanel?.classList.contains('is-open') ?? false;
     }
 
-    openThemePanel() {
-        if (!this.themePanel) {
-            return;
-        }
-
-        if (this.themePanel.classList.contains('is-open')) {
+    openSettingsPanel() {
+        if (!this.settingsPanel || this.settingsPanel.classList.contains('is-open')) {
             return;
         }
 
         this.renderThemeList();
-        this.themePanel.classList.remove('is-closing');
-        this.themePanel.classList.add('is-open');
-        this.themePanel.setAttribute('aria-hidden', 'false');
-        this.themeButton?.setAttribute('aria-expanded', 'true');
-        document.addEventListener('keydown', this.boundThemeKeyHandler);
-
-        queueMicrotask(() => {
-            const activeButton = this.themeListElement?.querySelector('.theme-item--active');
-            if (activeButton) {
-                activeButton.focus?.();
-            } else {
-                this.themeListElement?.querySelector('[data-theme-id]')?.focus?.();
-            }
-        });
+        this.settingsPanel.classList.remove('is-closing');
+        this.settingsPanel.classList.add('is-open');
+        this.settingsPanel.setAttribute('aria-hidden', 'false');
+        this.settingsButton?.setAttribute('aria-expanded', 'true');
+        document.addEventListener('keydown', this.boundSettingsKeyHandler);
+        this.activateSettingsTab(this.activeSettingsTab);
+        const activeTab = this.settingsTabs.find((tab) => tab.dataset.settingsTab === this.activeSettingsTab);
+        activeTab?.focus?.();
     }
 
-    closeThemePanel() {
-        if (!this.themePanel || (!this.isThemePanelOpen() && !this.themePanel.classList.contains('is-closing'))) {
+    closeSettingsPanel() {
+        if (!this.settingsPanel || (!this.isSettingsPanelOpen() && !this.settingsPanel.classList.contains('is-closing'))) {
             return;
         }
 
-        if (this.themePanel.classList.contains('is-closing')) {
+        if (this.settingsPanel.classList.contains('is-closing')) {
             return;
         }
 
-        this.themePanel.classList.add('is-closing');
-        this.themePanel.setAttribute('aria-hidden', 'true');
-        this.themeButton?.setAttribute('aria-expanded', 'false');
-        document.removeEventListener('keydown', this.boundThemeKeyHandler);
+        this.settingsPanel.classList.add('is-closing');
+        this.settingsPanel.setAttribute('aria-hidden', 'true');
+        this.settingsButton?.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('keydown', this.boundSettingsKeyHandler);
 
         let fallbackTimeoutId = null;
 
@@ -410,29 +405,395 @@ class Metronome {
             if (fallbackTimeoutId !== null) {
                 window.clearTimeout(fallbackTimeoutId);
             }
-            this.themePanel.classList.remove('is-closing');
-            this.themePanel.classList.remove('is-open');
-            this.themePanel.removeEventListener('transitionend', onTransitionEnd);
-            this.themeButton?.focus?.();
+            this.settingsPanel.classList.remove('is-closing');
+            this.settingsPanel.classList.remove('is-open');
+            this.settingsPanel.removeEventListener('transitionend', onTransitionEnd);
+            this.settingsButton?.focus?.();
         };
 
         const onTransitionEnd = (event) => {
-            if (event.target !== this.themePanel) {
+            if (event.target !== this.settingsPanel) {
                 return;
             }
 
             finalizeClose();
         };
 
-        this.themePanel.addEventListener('transitionend', onTransitionEnd);
+        this.settingsPanel.addEventListener('transitionend', onTransitionEnd);
 
         fallbackTimeoutId = window.setTimeout(() => {
             finalizeClose();
         }, 320);
 
         requestAnimationFrame(() => {
-            this.themePanel.classList.remove('is-open');
+            this.settingsPanel.classList.remove('is-open');
         });
+    }
+
+    activateSettingsTab(tabName) {
+        if (!tabName) {
+            return;
+        }
+
+        this.activeSettingsTab = tabName;
+
+        this.settingsTabs.forEach((tab) => {
+            const isActive = tab.dataset.settingsTab === tabName;
+            tab.classList.toggle('settings-tab--active', isActive);
+            tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+
+        this.settingsSections.forEach((section) => {
+            const isActive = section.dataset.settingsSection === tabName;
+            section.classList.toggle('settings-section--active', isActive);
+        });
+
+        if (tabName === 'theme') {
+            this.renderThemeList();
+        }
+    }
+
+    setupBeatDisplayControls() {
+        if (!this.beatFlashInputs || !this.beatFlashInputs.length) {
+            return;
+        }
+
+        this.beatFlashInputs.forEach((input) => {
+            input.addEventListener('change', (event) => {
+                if (!event.target.checked) {
+                    return;
+                }
+                const newMode = event.target.value === 'every' ? 'every' : 'downbeat';
+                if (this.beatFlashMode !== newMode) {
+                    this.beatFlashMode = newMode;
+                    if (!this.isRestoringSettings) {
+                        this.saveSettings();
+                    }
+                }
+            });
+        });
+
+        this.syncBeatFlashInputs();
+    }
+
+    syncBeatFlashInputs() {
+        if (!this.beatFlashInputs || !this.beatFlashInputs.length) {
+            return;
+        }
+
+        this.beatFlashInputs.forEach((input) => {
+            input.checked = input.value === this.beatFlashMode;
+        });
+    }
+
+    setupDataTransferControls() {
+        this.settingsExportButton?.addEventListener('click', () => this.handleDataExport());
+
+        this.settingsImportButton?.addEventListener('click', (event) => {
+            event.stopPropagation();
+            event.preventDefault();
+            this.requestDataImport();
+        });
+
+        this.settingsImportInput?.addEventListener('change', (event) => this.handleSettingsFileSelection(event));
+
+        if (this.settingsDropZone) {
+            this.settingsDropZone.addEventListener('click', (event) => {
+                if (event.target?.closest('.io-dropzone__browse')) {
+                    return;
+                }
+                this.requestDataImport();
+            });
+            this.settingsDropZone.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+                    event.preventDefault();
+                    this.requestDataImport();
+                }
+            });
+        }
+
+        this.setupDropZone(this.settingsDropZone, {
+            onFileDrop: (file) => this.handleSettingsImportFile(file),
+        });
+    }
+
+    async handleDataExport() {
+        const presetsAvailable = this.presets.length > 0;
+        const themeAvailable = true;
+        const selection = await this.promptDataSelection({
+            title: 'Export Data',
+            message: 'Choose what to include in your Tempo Sync export file.',
+            confirmText: 'Export',
+            items: [
+                {
+                    id: 'export-presets',
+                    value: 'presets',
+                    title: 'Presets',
+                    description: presetsAvailable ? 'All saved tempo, volume, and time signature presets.' : 'No presets available yet.',
+                    checked: presetsAvailable,
+                    disabled: !presetsAvailable,
+                },
+                {
+                    id: 'export-theme',
+                    value: 'theme',
+                    title: 'Custom Theme',
+                    description: 'Your accent color plus any advanced overrides.',
+                    checked: themeAvailable,
+                },
+            ],
+        });
+
+        if (!selection || selection.action !== 'Export') {
+            return;
+        }
+
+        const includePresets = selection.values.has('presets');
+        const includeTheme = selection.values.has('theme');
+
+        if (!includePresets && !includeTheme) {
+            await this.showAlert('Nothing Selected', 'Select at least one item to export.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        const payload = this.buildDataExportPayload({ includePresets, includeTheme });
+        const filename = `tempo-sync-export-${this.formatDateForFilename()}.json`;
+        this.downloadJson(payload, filename);
+
+        const includedItems = [
+            includePresets ? 'presets' : null,
+            includeTheme ? 'custom theme' : null,
+        ].filter(Boolean);
+        const includedLabels = includedItems.join(' and ');
+        const verb = includedItems.length > 1
+            ? 'are'
+            : includedItems[0] === 'presets'
+                ? 'are'
+                : 'is';
+
+        await this.showAlert(
+            'Export Ready',
+            `Your ${includedLabels} ${verb} saved as “${filename}”. Keep it safe to sync Tempo Sync anywhere.`,
+            [
+                { text: 'Nice', style: 'primary', primary: true },
+            ],
+        );
+    }
+
+    buildDataExportPayload({ includePresets = false, includeTheme = false } = {}) {
+        const payload = {
+            type: 'tempo-sync.bundle',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            includes: {
+                presets: Boolean(includePresets),
+                customTheme: Boolean(includeTheme),
+            },
+        };
+
+        if (includePresets) {
+            const presetPayload = this.buildPresetExportPayload();
+            payload.presets = presetPayload.presets;
+            payload.presetCount = presetPayload.presetCount;
+        }
+
+        if (includeTheme) {
+            const themePayload = this.buildCustomThemeExportPayload();
+            payload.customTheme = themePayload.theme;
+        }
+
+        return payload;
+    }
+
+    requestDataImport() {
+        if (!this.settingsImportInput) {
+            return;
+        }
+
+        this.settingsImportInput.value = '';
+        this.settingsImportInput.click();
+    }
+
+    async handleSettingsFileSelection(event) {
+        const input = event?.currentTarget instanceof HTMLInputElement
+            ? event.currentTarget
+            : event?.target instanceof HTMLInputElement
+                ? event.target
+                : null;
+
+        if (!input) {
+            return;
+        }
+
+        const files = Array.from(input.files || []);
+        if (!files.length) {
+            return;
+        }
+
+        for (const file of files) {
+            try {
+                // eslint-disable-next-line no-await-in-loop
+                await this.handleSettingsImportFile(file);
+            } catch (error) {
+                // Errors are surfaced within import handlers.
+            }
+        }
+
+        input.value = '';
+    }
+
+    async handleSettingsImportFile(file) {
+        let text;
+        try {
+            text = await file.text();
+        } catch (error) {
+            await this.showAlert('Import Failed', 'Unable to read the selected file.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (error) {
+            await this.showAlert('Import Failed', 'The selected file is not valid JSON.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        await this.handleDataImportPayload(data, { fileName: file?.name ?? null });
+    }
+
+    async handleDataImportPayload(data, { fileName = null } = {}) {
+        const presetArray = this.extractPresetArray(data) || [];
+        const themePayload = this.extractThemePayload(data);
+        const hasPresets = presetArray.length > 0;
+        const hasTheme = Boolean(themePayload);
+
+        if (!hasPresets && !hasTheme) {
+            await this.showAlert('Import Failed', 'No presets or custom theme data found in this file.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        const fileLabel = typeof fileName === 'string' && fileName.trim().length ? `“${fileName.trim()}”` : 'this file';
+
+        const selection = await this.promptDataSelection({
+            title: 'Import Data',
+            message: `Choose what to import from ${fileLabel}.`,
+            confirmText: 'Import',
+            items: [
+                {
+                    id: 'import-presets',
+                    value: 'presets',
+                    title: 'Presets',
+                    description: hasPresets ? `Found ${presetArray.length} ${presetArray.length === 1 ? 'preset' : 'presets'}.` : 'No presets in this file.',
+                    checked: hasPresets,
+                    disabled: !hasPresets,
+                },
+                {
+                    id: 'import-theme',
+                    value: 'theme',
+                    title: 'Custom Theme',
+                    description: hasTheme ? 'Includes a custom color palette.' : 'No custom theme found.',
+                    checked: hasTheme,
+                    disabled: !hasTheme,
+                },
+            ],
+        });
+
+        if (!selection || selection.action !== 'Import') {
+            return;
+        }
+
+        const importPresets = selection.values.has('presets');
+        const importTheme = selection.values.has('theme');
+
+        if (!importPresets && !importTheme) {
+            await this.showAlert('Nothing Selected', 'Select at least one item to import.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        if (importTheme && hasTheme) {
+            await this.importCustomThemeFromData(data, { fileName });
+        }
+
+        if (importPresets && hasPresets) {
+            await this.importPresetsFromData(data, { fileName });
+        }
+    }
+
+    async promptDataSelection({ title, message, items = [], confirmText = 'OK' } = {}) {
+        const { container, inputs } = this.createAlertCheckboxGroup(items);
+        const result = await this.showAlert(title, message, [
+            { text: 'Cancel', style: 'default' },
+            { text: confirmText, style: 'primary', primary: true },
+        ], {
+            extraContent: container,
+            onResult: ({ action }) => ({
+                action,
+                values: new Set(
+                    inputs
+                        .filter((input) => !input.disabled && input.checked)
+                        .map((input) => input.value)
+                ),
+            }),
+        });
+
+        if (!result || typeof result !== 'object') {
+            return null;
+        }
+
+        return {
+            action: result.action,
+            values: result.values,
+        };
+    }
+
+    createAlertCheckboxGroup(items = []) {
+        const container = document.createElement('div');
+        container.className = 'alert-checkbox-group';
+        const inputs = [];
+
+        items.forEach((item) => {
+            const label = document.createElement('label');
+            label.className = 'alert-checkbox';
+
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.id = item.id;
+            input.value = item.value;
+            input.checked = Boolean(item.checked);
+            input.disabled = Boolean(item.disabled);
+
+            const content = document.createElement('div');
+            content.className = 'alert-checkbox__content';
+
+            const title = document.createElement('div');
+            title.className = 'alert-checkbox__title';
+            title.textContent = item.title;
+
+            const description = document.createElement('p');
+            description.className = 'alert-checkbox__description';
+            description.textContent = item.description || '';
+
+            content.appendChild(title);
+            content.appendChild(description);
+
+            label.appendChild(input);
+            label.appendChild(content);
+
+            container.appendChild(label);
+            inputs.push(input);
+        });
+
+        return { container, inputs };
     }
 
     renderThemeList() {
@@ -472,7 +833,7 @@ class Metronome {
         this.themeListElement.innerHTML = markup;
 
         queueMicrotask(() => {
-            if (!this.isThemePanelOpen()) {
+            if (!this.isSettingsPanelOpen()) {
                 return;
             }
             const activeButton = this.themeListElement?.querySelector('.theme-item--active');
@@ -571,56 +932,6 @@ class Metronome {
         this.clearCustomThemeError();
         this.setAdvancedFieldsVisibility(false);
         this.updateCustomThemeSectionState();
-    }
-
-    setupThemeIoControls() {
-        if (this.themeIoToggle && this.themeIoPanel) {
-            const togglePanel = () => {
-                const isExpanded = this.themeIoToggle.getAttribute('aria-expanded') === 'true';
-                this.setThemeIoPanelVisibility(!isExpanded, { focusPanel: !isExpanded });
-            };
-
-            this.themeIoToggle.addEventListener('click', togglePanel);
-            this.themeIoToggle.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    togglePanel();
-                } else if (event.key === 'ArrowDown' && !this.themeIoPanel.hidden) {
-                    event.preventDefault();
-                    queueMicrotask(() => this.focusFirstInteractiveElement(this.themeIoPanel));
-                }
-            });
-
-            this.themeIoPanel.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape') {
-                    event.preventDefault();
-                    this.setThemeIoPanelVisibility(false);
-                }
-            });
-        }
-
-        this.themeExportButton?.addEventListener('click', () => this.handleThemeExport());
-        this.themeImportButton?.addEventListener('click', (event) => {
-            event.stopPropagation();
-            event.preventDefault();
-            this.requestThemeImport();
-        });
-        this.themeImportInput?.addEventListener('change', (event) => this.handleThemeFileSelection(event));
-
-        if (this.themeDropZone) {
-            this.themeDropZone.addEventListener('click', (event) => {
-                if (event.target?.closest('.io-dropzone__browse')) {
-                    return;
-                }
-                this.requestThemeImport();
-            });
-            this.themeDropZone.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
-                    event.preventDefault();
-                    this.requestThemeImport();
-                }
-            });
-        }
     }
 
     focusCustomThemeInput() {
@@ -953,34 +1264,6 @@ class Metronome {
         }
     }
 
-    async handleThemeExport() {
-        const payload = this.buildCustomThemeExportPayload();
-        const filename = `tempo-sync-theme-${this.formatDateForFilename()}.json`;
-        const accent = payload?.theme?.accent || this.customTheme?.accent || this.defaultCustomAccent;
-        const confirm = await this.showAlert(
-            'Export Custom Theme',
-            `Export your custom theme (accent ${accent}) to “${filename}”? Import this file on any device to reuse the palette.`,
-            [
-                { text: 'Cancel', style: 'default' },
-                { text: 'Export', style: 'primary', primary: true },
-            ],
-        );
-
-        if (confirm !== 'Export') {
-            return;
-        }
-
-        this.downloadJson(payload, filename);
-
-        await this.showAlert(
-            'Theme Exported',
-            `Your custom theme is saved as “${filename}”. Keep this file to sync the look across browsers or share it with friends.`,
-            [
-                { text: 'Nice', style: 'primary', primary: true },
-            ],
-        );
-    }
-
     buildCustomThemeExportPayload() {
         const theme = this.normalizeCustomTheme(this.customTheme);
         return {
@@ -991,70 +1274,9 @@ class Metronome {
         };
     }
 
-    requestThemeImport() {
-        if (!this.themeImportInput) {
-            return;
-        }
-
-        this.themeImportInput.value = '';
-        this.themeImportInput.click();
-    }
-
-    async handleThemeFileSelection(event) {
-        const input = event?.currentTarget instanceof HTMLInputElement
-            ? event.currentTarget
-            : event?.target instanceof HTMLInputElement
-                ? event.target
-                : null;
-
-        if (!input) {
-            return;
-        }
-
-        const files = Array.from(input.files || []);
-        if (!files.length) {
-            return;
-        }
-
-        for (const file of files) {
-            try {
-                // eslint-disable-next-line no-await-in-loop
-                await this.importCustomThemeFromFile(file);
-            } catch (error) {
-                // Any surface-level errors are handled within import method.
-            }
-        }
-
-        input.value = '';
-    }
-
-    async importCustomThemeFromFile(file) {
-        let text;
-        try {
-            text = await file.text();
-        } catch (error) {
-            this.showAlert('Import Theme Failed', 'Unable to read the selected file.', [
-                { text: 'OK', style: 'primary', primary: true },
-            ]);
-            return;
-        }
-
-        let data;
-        try {
-            data = JSON.parse(text);
-        } catch (error) {
-            this.showAlert('Import Theme Failed', 'The selected file is not valid JSON.', [
-                { text: 'OK', style: 'primary', primary: true },
-            ]);
-            return;
-        }
-
-        await this.importCustomThemeFromData(data, { fileName: file?.name ?? null });
-    }
-
     async importCustomThemeFromData(data, { fileName = null } = {}) {
         const payloadKind = this.identifyImportPayloadKind(data);
-        if (payloadKind !== 'customTheme') {
+        if (payloadKind !== 'customTheme' && payloadKind !== 'bundle') {
             const message = this.formatImportMismatchMessage('customTheme', payloadKind, fileName);
             await this.showAlert('Import Theme Failed', message, [
                 { text: 'OK', style: 'primary', primary: true },
@@ -1304,31 +1526,6 @@ class Metronome {
         this.presetCloseButton?.addEventListener('click', () => this.closePresetPanel());
         this.presetPanelBackdrop?.addEventListener('click', () => this.closePresetPanel());
 
-        if (this.presetIoToggle && this.presetIoPanel) {
-            const togglePanel = () => {
-                const isExpanded = this.presetIoToggle.getAttribute('aria-expanded') === 'true';
-                this.setPresetIoPanelVisibility(!isExpanded, { focusPanel: !isExpanded });
-            };
-
-            this.presetIoToggle.addEventListener('click', togglePanel);
-            this.presetIoToggle.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    togglePanel();
-                } else if (event.key === 'ArrowDown' && !this.presetIoPanel.hidden) {
-                    event.preventDefault();
-                    queueMicrotask(() => this.focusFirstInteractiveElement(this.presetIoPanel));
-                }
-            });
-
-            this.presetIoPanel.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape') {
-                    event.preventDefault();
-                    this.setPresetIoPanelVisibility(false);
-                }
-            });
-        }
-
         this.presetAddCustomToggle?.addEventListener('click', () => {
             if (this.isPresetFormVisible) {
                 this.hidePresetForm();
@@ -1382,30 +1579,6 @@ class Metronome {
         }
 
         this.presetListElement?.addEventListener('click', (event) => this.handlePresetListClick(event));
-
-        this.presetExportButton?.addEventListener('click', () => this.handlePresetExport());
-        this.presetImportButton?.addEventListener('click', (event) => {
-            event.stopPropagation();
-            event.preventDefault();
-            this.requestPresetImport();
-        });
-        this.presetImportInput?.addEventListener('change', (event) => this.handlePresetFileSelection(event));
-
-        if (this.presetDropZone) {
-            this.presetDropZone.addEventListener('click', (event) => {
-                if (event.target?.closest('.io-dropzone__browse')) {
-                    return;
-                }
-                this.requestPresetImport();
-            });
-            this.presetDropZone.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
-                    event.preventDefault();
-                    this.requestPresetImport();
-                }
-            });
-        }
-
         this.presetHistoryCard?.addEventListener('click', (event) => {
             const actionButton = event.target.closest('[data-last-played-action]');
             if (!actionButton) {
@@ -1416,16 +1589,6 @@ class Metronome {
             if (action === 'apply') {
                 this.applyLastPlayedSnapshot();
             }
-        });
-    }
-
-    setupImportDragAndDrop() {
-        this.setupDropZone(this.presetDropZone, {
-            onFileDrop: (file) => this.importPresetsFromFile(file),
-        });
-
-        this.setupDropZone(this.themeDropZone, {
-            onFileDrop: (file) => this.importCustomThemeFromFile(file),
         });
     }
 
@@ -1499,89 +1662,6 @@ class Metronome {
         element.addEventListener('dragover', handleDragOver);
         element.addEventListener('dragleave', handleDragLeave);
         element.addEventListener('drop', handleDrop);
-    }
-
-    setPresetIoPanelVisibility(shouldShow, { focusPanel = false, silent = false } = {}) {
-        this.setIoPanelVisibility({
-            panel: this.presetIoPanel,
-            toggle: this.presetIoToggle,
-            shouldShow,
-            focusPanel,
-            silent,
-        });
-    }
-
-    setThemeIoPanelVisibility(shouldShow, { focusPanel = false, silent = false } = {}) {
-        this.setIoPanelVisibility({
-            panel: this.themeIoPanel,
-            toggle: this.themeIoToggle,
-            shouldShow,
-            focusPanel,
-            silent,
-        });
-    }
-
-    setIoPanelVisibility({ panel, toggle, shouldShow, focusPanel = false, silent = false } = {}) {
-        if (!panel || !toggle) {
-            return;
-        }
-
-        const existingTimeout = this.ioPanelHideTimeouts.get(panel);
-        if (existingTimeout) {
-            window.clearTimeout(existingTimeout);
-            this.ioPanelHideTimeouts.delete(panel);
-        }
-
-        if (shouldShow) {
-            panel.hidden = false;
-            panel.setAttribute('aria-hidden', 'false');
-            requestAnimationFrame(() => {
-                panel.classList.add('is-open');
-            });
-            toggle.setAttribute('aria-expanded', 'true');
-            toggle.classList.add('is-expanded');
-
-            if (focusPanel) {
-                queueMicrotask(() => this.focusFirstInteractiveElement(panel));
-            }
-            return;
-        }
-
-        panel.setAttribute('aria-hidden', 'true');
-        panel.classList.remove('is-open');
-        toggle.setAttribute('aria-expanded', 'false');
-        toggle.classList.remove('is-expanded');
-        panel.querySelectorAll('.is-dragover').forEach((element) => element.classList.remove('is-dragover'));
-
-        const timeoutId = window.setTimeout(() => {
-            panel.hidden = true;
-            this.ioPanelHideTimeouts.delete(panel);
-        }, 200);
-
-        this.ioPanelHideTimeouts.set(panel, timeoutId);
-
-        if (!silent) {
-            queueMicrotask(() => toggle.focus?.());
-        }
-    }
-
-    focusFirstInteractiveElement(container) {
-        if (!container) {
-            return;
-        }
-
-        const selectors = [
-            '[data-focus-first]',
-            'button:not([disabled])',
-            'input:not([disabled]):not([type="hidden"])',
-            'select:not([disabled])',
-            'textarea:not([disabled])',
-            '[tabindex]:not([tabindex="-1"])',
-            'a[href]'
-        ];
-
-        const focusTarget = container.querySelector(selectors.join(', '));
-        focusTarget?.focus?.();
     }
 
     isFileDrag(event) {
@@ -2125,41 +2205,6 @@ class Metronome {
         `;
     }
 
-    async handlePresetExport() {
-        if (!this.presets.length) {
-            await this.showAlert('Export Presets', 'Save at least one preset before exporting.', [
-                { text: 'OK', style: 'primary', primary: true },
-            ]);
-            return;
-        }
-
-        const payload = this.buildPresetExportPayload();
-        const filename = `tempo-sync-presets-${this.formatDateForFilename()}.json`;
-        const presetCount = payload.presetCount || this.presets.length;
-        const confirm = await this.showAlert(
-            'Export Presets',
-            `Export ${presetCount} ${presetCount === 1 ? 'preset' : 'presets'} to “${filename}”? You can import this file later to restore or share your setup.`,
-            [
-                { text: 'Cancel', style: 'default' },
-                { text: 'Export', style: 'primary', primary: true },
-            ],
-        );
-
-        if (confirm !== 'Export') {
-            return;
-        }
-
-        this.downloadJson(payload, filename);
-
-        await this.showAlert(
-            'Export Started',
-            `We generated ${presetCount} ${presetCount === 1 ? 'preset' : 'presets'} in “${filename}”. Check your downloads folder and keep it safe for backups or sharing.`,
-            [
-                { text: 'Got it', style: 'primary', primary: true },
-            ],
-        );
-    }
-
     buildPresetExportPayload() {
         return {
             type: 'tempo-sync.presets',
@@ -2192,67 +2237,6 @@ class Metronome {
         URL.revokeObjectURL(url);
     }
 
-    requestPresetImport() {
-        if (!this.presetImportInput) {
-            return;
-        }
-
-        this.presetImportInput.value = '';
-        this.presetImportInput.click();
-    }
-
-    async handlePresetFileSelection(event) {
-        const input = event?.currentTarget instanceof HTMLInputElement
-            ? event.currentTarget
-            : event?.target instanceof HTMLInputElement
-                ? event.target
-                : null;
-
-        if (!input) {
-            return;
-        }
-
-        const files = Array.from(input.files || []);
-        if (!files.length) {
-            return;
-        }
-
-        for (const file of files) {
-            try {
-                // eslint-disable-next-line no-await-in-loop
-                await this.importPresetsFromFile(file);
-            } catch (error) {
-                // Alerts shown inside import methods; swallow to keep processing.
-            }
-        }
-
-        input.value = '';
-    }
-
-    async importPresetsFromFile(file) {
-        let text;
-        try {
-            text = await file.text();
-        } catch (error) {
-            this.showAlert('Import Presets Failed', 'Unable to read the selected file.', [
-                { text: 'OK', style: 'primary', primary: true },
-            ]);
-            return;
-        }
-
-        let data;
-        try {
-            data = JSON.parse(text);
-        } catch (error) {
-            this.showAlert('Import Presets Failed', 'The selected file is not valid JSON.', [
-                { text: 'OK', style: 'primary', primary: true },
-            ]);
-            return;
-        }
-
-        await this.importPresetsFromData(data, { fileName: file?.name ?? null });
-    }
-
     identifyImportPayloadKind(payload) {
         if (Array.isArray(payload)) {
             return this.extractPresetArray(payload) ? 'presets' : 'unknown';
@@ -2268,6 +2252,10 @@ class Metronome {
                 ? payload.kind
                 : null;
 
+        if (signature === 'tempo-sync.bundle') {
+            return 'bundle';
+        }
+
         if (signature === 'tempo-sync.custom-theme') {
             return 'customTheme';
         }
@@ -2276,11 +2264,18 @@ class Metronome {
             return 'presets';
         }
 
-        if (this.extractThemePayload(payload)) {
+        const hasPresets = Boolean(this.extractPresetArray(payload));
+        const hasTheme = Boolean(this.extractThemePayload(payload));
+
+        if (hasPresets && hasTheme) {
+            return 'bundle';
+        }
+
+        if (hasTheme) {
             return 'customTheme';
         }
 
-        if (this.extractPresetArray(payload)) {
+        if (hasPresets) {
             return 'presets';
         }
 
@@ -2408,11 +2403,11 @@ class Metronome {
         const safeName = typeof fileName === 'string' && fileName.trim().length ? `“${fileName.trim()}”` : 'This file';
 
         if (expectedKind === 'presets' && actualKind === 'customTheme') {
-            return `${safeName} looks like a Tempo Sync custom theme export. To import it, open Themes → Import & Export and use the custom theme importer.`;
+            return `${safeName} looks like a Tempo Sync custom theme export. To import it, open Settings → Import & Export and choose Custom Theme.`;
         }
 
         if (expectedKind === 'customTheme' && actualKind === 'presets') {
-            return `${safeName} looks like a Tempo Sync preset export. To add these presets, open Presets → Import & Export instead.`;
+            return `${safeName} looks like a Tempo Sync preset export. To add these presets, open Settings → Import & Export and choose Presets.`;
         }
 
         const readableKind = expectedKind === 'presets' ? 'preset' : 'custom theme';
@@ -2421,7 +2416,7 @@ class Metronome {
 
     async importPresetsFromData(data, { fileName = null } = {}) {
         const payloadKind = this.identifyImportPayloadKind(data);
-        if (payloadKind !== 'presets') {
+        if (payloadKind !== 'presets' && payloadKind !== 'bundle') {
             const message = this.formatImportMismatchMessage('presets', payloadKind, fileName);
             await this.showAlert('Import Presets Failed', message, [
                 { text: 'OK', style: 'primary', primary: true },
@@ -2810,17 +2805,37 @@ class Metronome {
         this.lastAppliedPresetTitle = null;
     }
 
-    showAlert(title, message, buttons = [{ text: 'OK', style: 'primary', primary: true }]) {
+    showAlert(title, message, buttons = [{ text: 'OK', style: 'primary', primary: true }], options = {}) {
         return new Promise((resolve) => {
             if (!this.customAlert || !this.customAlertTitle || !this.customAlertMessage || !this.customAlertActions) {
-                resolve(buttons.find(btn => btn.primary)?.text || buttons[0]?.text || 'OK');
+                const fallback = typeof options.onResult === 'function'
+                    ? options.onResult({ action: buttons.find((btn) => btn.primary)?.text || buttons[0]?.text || 'OK' })
+                    : buttons.find((btn) => btn.primary)?.text || buttons[0]?.text || 'OK';
+                resolve(fallback);
                 return;
             }
+
+            const resolveWithAction = (actionText) => {
+                if (typeof options.onResult === 'function') {
+                    return options.onResult({ action: actionText });
+                }
+                return actionText;
+            };
 
             this.customAlertResolve = resolve;
             this.customAlertTitle.textContent = title;
             this.customAlertMessage.textContent = message;
             this.customAlertActions.innerHTML = '';
+
+            if (this.customAlertExtra) {
+                this.customAlertExtra.innerHTML = '';
+                if (options.extraContent instanceof HTMLElement) {
+                    this.customAlertExtra.appendChild(options.extraContent);
+                    this.customAlertExtra.hidden = false;
+                } else {
+                    this.customAlertExtra.hidden = true;
+                }
+            }
 
             buttons.forEach((button) => {
                 const btn = document.createElement('button');
@@ -2834,7 +2849,7 @@ class Metronome {
                 }
 
                 btn.addEventListener('click', () => {
-                    this.closeAlert(button.text);
+                    this.closeAlert(resolveWithAction(button.text));
                 });
 
                 this.customAlertActions.appendChild(btn);
@@ -2842,7 +2857,7 @@ class Metronome {
 
             if (this.customAlertBackdrop) {
                 this.customAlertBackdropHandler = () => {
-                    this.closeAlert(buttons.find((btn) => !btn.primary)?.text || buttons[0]?.text || 'Cancel');
+                    this.closeAlert(resolveWithAction(buttons.find((btn) => !btn.primary)?.text || buttons[0]?.text || 'Cancel'));
                 };
                 this.customAlertBackdrop.addEventListener('click', this.customAlertBackdropHandler, { once: true });
             }
@@ -2857,6 +2872,10 @@ class Metronome {
         }
 
         this.customAlert.classList.remove('is-open');
+        if (this.customAlertExtra) {
+            this.customAlertExtra.innerHTML = '';
+            this.customAlertExtra.hidden = true;
+        }
         if (this.customAlertBackdrop && this.customAlertBackdropHandler) {
             this.customAlertBackdrop.removeEventListener('click', this.customAlertBackdropHandler);
             this.customAlertBackdropHandler = null;
@@ -3087,6 +3106,10 @@ class Metronome {
                 this.presetGroupByTime = true;
             }
 
+            if (settings.beatFlashMode === 'every' || settings.beatFlashMode === 'downbeat') {
+                this.beatFlashMode = settings.beatFlashMode;
+            }
+
             if (settings.lastPlayed && typeof settings.lastPlayed === 'object') {
                 this.lastPlayed = this.normalizeLastPlayed(settings.lastPlayed);
             }
@@ -3099,6 +3122,7 @@ class Metronome {
             }
             this.syncCustomThemeInputs(this.customTheme);
             this.updateCustomThemeSectionState();
+            this.syncBeatFlashInputs();
             this.refreshPresetUI();
         }
     }
@@ -3120,6 +3144,7 @@ class Metronome {
                 presetViewMode: this.presetViewMode,
                 presetGroupByTime: this.presetGroupByTime,
                 lastPlayed: this.lastPlayed,
+                beatFlashMode: this.beatFlashMode,
             };
             window.localStorage.setItem(this.storageKey, JSON.stringify(settings));
         } catch (error) {
@@ -3343,7 +3368,9 @@ class Metronome {
 
         beatDisplay.textContent = beatNumber;
 
-        if (beatNumber === 1) {
+        const shouldFlash = this.shouldFlashBeat(beatNumber);
+
+        if (shouldFlash) {
             beatDisplay.classList.add('flash');
             clearTimeout(this.flashTimeout);
             this.flashTimeout = setTimeout(() => {
@@ -3352,6 +3379,13 @@ class Metronome {
         } else {
             beatDisplay.classList.remove('flash');
         }
+    }
+
+    shouldFlashBeat(beatNumber) {
+        if (this.beatFlashMode === 'every') {
+            return true;
+        }
+        return beatNumber === 1;
     }
 
     clearVisualTimeouts() {
