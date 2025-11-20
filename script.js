@@ -1,2538 +1,3667 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    transition: background-color 0.3s, color 0.3s;
-}
+import { themeEntries } from './themes/themeCatalog.js';
 
-:where([hidden]) {
-    display: none !important;
-}
+class Metronome {
+    constructor() {
+        this.audioContext = null;
+        this.currentBeatNumber = 1;
+        this.isPlaying = false;
+        this.tempo = 120;
+        this.beatsPerMeasure = parseInt(document.getElementById('beatsPerMeasure').value, 10) || 4;
+        this.beatUnit = parseInt(document.getElementById('beatUnit').value, 10) || 4;
+        this.nextNoteTime = 0;
+        this.tapTimes = [];
+        this.tapTimeoutId = null;
+        this.flashTimeout = null;
+        this.masterGain = null;
+        this.volume = 0.8;
+        this.defaultScheduleAheadTime = 0.12;
+        this.backgroundScheduleAheadTime = 6.0;
+        this.scheduleAheadTime = this.defaultScheduleAheadTime;
+        this.defaultLookahead = 25;
+        this.backgroundLookahead = 1000;
+        this.lookahead = this.defaultLookahead;
+        this.schedulerId = null;
+        this.visualTimeouts = [];
+        this.storageKey = 'tempoSyncSettings';
+        this.isRestoringSettings = false;
+        this.volumeValueInput = document.getElementById('volumeValueInput');
+        this.volumeSlider = document.getElementById('volumeControl');
+        this.themeSelect = document.getElementById('themeSelect');
+        this.beatDisplayElement = document.getElementById('beatDisplay');
+        this.beatFlashMode = 'downbeat';
+        this.beatFlashInputs = document.querySelectorAll('input[name="beatFlashMode"]');
+        this.presetButton = document.getElementById('presetButton');
+        this.presetPanel = document.getElementById('presetPanel');
+        this.presetPanelBackdrop = this.presetPanel?.querySelector('[data-preset-close]') || null;
+        this.presetCloseButton = document.getElementById('presetCloseButton');
+        this.presetListElement = document.getElementById('presetList');
+        this.presetEmptyState = document.getElementById('presetEmptyState');
+        this.presetHistorySection = document.getElementById('presetHistory');
+        this.presetHistoryCard = document.getElementById('presetHistoryCard');
+        this.presetSortSelect = document.getElementById('presetSortSelect');
+        this.presetForm = document.getElementById('presetForm');
+        this.presetAddCustomToggle = document.getElementById('presetAddCustomToggle');
+        this.presetUseCurrentCheckbox = document.getElementById('presetUseCurrentCheckbox');
+        this.presetTitleInput = document.getElementById('presetTitleInput');
+        this.presetTempoInput = document.getElementById('presetTempoInput');
+        this.presetVolumeInput = document.getElementById('presetVolumeInput');
+        this.presetBeatsInput = document.getElementById('presetBeatsInput');
+        this.presetBeatUnitInput = document.getElementById('presetBeatUnitInput');
+        this.presetGroupToggle = document.getElementById('presetGroupToggle');
+        this.presetGroupByTimeCheckbox = document.getElementById('presetGroupByTime');
+        this.isPresetFormVisible = false;
+        this.presetFormHideTimeoutId = null;
+        this.presets = [];
+        this.presetViewMode = 'time';
+        this.presetGroupByTime = true;
+        this.lastPlayed = null;
+        this.activePresetId = null;
+        this.lastAppliedPresetTitle = null;
+        this.isApplyingPreset = false;
+        this.presetFormMode = 'create';
+        this.boundPresetKeyHandler = (event) => {
+            if (event.key === 'Escape' && this.isPresetPanelOpen()) {
+                this.closePresetPanel();
+            }
+        };
+        this.currentTheme = 'system';
+        this.systemThemeMediaQuery = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+            ? window.matchMedia('(prefers-color-scheme: dark)')
+            : null;
+        this.boundSystemThemeHandler = (event) => {
+            if (this.currentTheme === 'system') {
+                this.applySystemTheme(event.matches);
+            }
+        };
+        this.systemThemeListenerAttached = false;
+        this.lastBeatTouchTime = 0;
+        this.tempoHoldTimeoutId = null;
+        this.tempoHoldIntervalId = null;
+        this.suppressTempoClick = false;
+        this.isTempoHolding = false;
+        this.pendingAudioEvents = new Set();
+        this.mutedWhileStopped = false;
+        this.playButton = document.getElementById('playButton');
+        this.customAlert = document.getElementById('customAlert');
+        this.customAlertTitle = document.getElementById('customAlertTitle');
+        this.customAlertMessage = document.getElementById('customAlertMessage');
+        this.customAlertExtra = document.getElementById('customAlertExtra');
+        this.customAlertActions = document.getElementById('customAlertActions');
+        this.customAlertResolve = null;
+        this.customAlertBackdrop = this.customAlert?.querySelector('[data-alert-close]') || null;
+        this.customAlertBackdropHandler = null;
+        this.settingsButton = document.getElementById('settingsButton');
+        this.settingsPanel = document.getElementById('settingsPanel');
+        this.settingsPanelBackdrop = this.settingsPanel?.querySelector('[data-settings-close]') || null;
+        this.settingsCloseButton = document.getElementById('settingsCloseButton');
+        this.settingsTabs = Array.from(document.querySelectorAll('[data-settings-tab]'));
+        this.settingsSections = Array.from(document.querySelectorAll('[data-settings-section]'));
+        this.activeSettingsTab = this.settingsTabs.find((tab) => tab.classList.contains('settings-tab--active'))?.dataset.settingsTab || 'beat';
+        this.themeListElement = document.getElementById('themeList');
+        this.customThemeSection = document.getElementById('customThemeSection');
+        this.customThemeForm = document.getElementById('customThemeForm');
+        this.customThemeColorInput = document.getElementById('customThemeColor');
+        this.customThemeHexInput = document.getElementById('customThemeHex');
+        this.customThemeResetButton = document.getElementById('customThemeReset');
+        this.customThemeError = document.getElementById('customThemeError');
+        this.customThemeBadge = document.getElementById('customThemeBadge');
+        this.customThemeAdvancedToggle = document.getElementById('customThemeAdvancedToggle');
+        this.customThemeAdvancedFields = document.getElementById('customThemeAdvancedFields');
+        this.settingsExportButton = document.getElementById('settingsExportButton');
+        this.settingsImportButton = document.getElementById('settingsImportButton');
+        this.settingsImportInput = document.getElementById('settingsImportInput');
+        this.settingsDropZone = document.getElementById('settingsDropZone');
+        this.boundSettingsKeyHandler = (event) => {
+            if (event.key === 'Escape' && this.isSettingsPanelOpen()) {
+                this.closeSettingsPanel();
+            }
+        };
+        this.defaultCustomAccent = '#3b82f6';
+        this.customThemeVariableMap = {
+            accent: '--custom-primary-color',
+            primaryHover: '--custom-primary-hover-color',
+            background: '--custom-bg-color',
+            container: '--custom-container-bg-color',
+            text: '--custom-text-color',
+            textSecondary: '--custom-text-secondary-color',
+            border: '--custom-border-color',
+            flash: '--custom-flash-color',
+        };
+        this.customThemeFieldConfig = [
+            {
+                key: 'primaryHover',
+                label: 'Accent hover',
+                colorInputId: 'customThemePrimaryHover',
+                textInputId: 'customThemePrimaryHoverHex',
+                cssVar: this.customThemeVariableMap.primaryHover,
+            },
+            {
+                key: 'background',
+                label: 'Background',
+                colorInputId: 'customThemeBackground',
+                textInputId: 'customThemeBackgroundHex',
+                cssVar: this.customThemeVariableMap.background,
+            },
+            {
+                key: 'container',
+                label: 'Surface',
+                colorInputId: 'customThemeContainer',
+                textInputId: 'customThemeContainerHex',
+                cssVar: this.customThemeVariableMap.container,
+            },
+            {
+                key: 'text',
+                label: 'Primary text',
+                colorInputId: 'customThemeText',
+                textInputId: 'customThemeTextHex',
+                cssVar: this.customThemeVariableMap.text,
+            },
+            {
+                key: 'textSecondary',
+                label: 'Secondary text',
+                colorInputId: 'customThemeTextSecondary',
+                textInputId: 'customThemeTextSecondaryHex',
+                cssVar: this.customThemeVariableMap.textSecondary,
+            },
+            {
+                key: 'border',
+                label: 'Border',
+                colorInputId: 'customThemeBorder',
+                textInputId: 'customThemeBorderHex',
+                cssVar: this.customThemeVariableMap.border,
+            },
+            {
+                key: 'flash',
+                label: 'Downbeat flash',
+                colorInputId: 'customThemeFlash',
+                textInputId: 'customThemeFlashHex',
+                cssVar: this.customThemeVariableMap.flash,
+            },
+        ];
+        this.customThemeAdvancedInputs = {};
+        this.customTheme = {
+            accent: this.defaultCustomAccent,
+            overrides: {},
+        };
+    this.themeCatalog = this.createThemeCatalog(themeEntries);
 
-body {
-    background: var(--bg);
-    color: var(--text);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    padding: 1rem;
-}
+        if (this.volumeValueInput) {
+            this.volumeValueInput.value = Math.round(this.volume * 100).toString();
+        }
 
-.container {
-    max-width: 500px;
-    width: 100%;
-    background: var(--container-bg);
-    border-radius: 1rem;
-    padding: 2rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    text-align: center;
-}
+        if (this.volumeSlider) {
+            this.volumeSlider.value = Math.round(this.volume * 100).toString();
+        }
 
-.header-container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 2rem;
-}
-
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.brand-logo {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    object-fit: contain;
-}
-
-.brand header {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-}
-
-.brand-title-row {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-    flex-wrap: nowrap;
-    min-width: 0;
-}
-
-.brand--about {
-    justify-content: center;
-    margin-bottom: 0.25rem;
-    flex: 0 0 auto;
-}
-
-.brand--about .brand-logo {
-    width: 40px;
-    height: 40px;
-}
-
-.brand--about h1 {
-    font-size: 1.6rem;
-}
-
-header h1 {
-    font-size: 2rem;
-    color: var(--primary);
-    margin: 0;
-    flex: 0 1 auto;
-    min-width: 0;
-    white-space: nowrap;
-}
-
-.header-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-left: auto;
-    flex-shrink: 0;
-}
-
-.settings-trigger {
-    position: relative;
-    display: inline-flex;
-}
-
-.header-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 3rem;
-    height: 3rem;
-    border-radius: 0.75rem;
-    border: 1px solid var(--border);
-    background: var(--container-bg);
-    color: var(--primary);
-    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
-    cursor: pointer;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
-    padding: 0;
-}
-
-.header-button:hover,
-.header-button:focus-visible {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
-    background: var(--container-bg);
-}
-
-.header-button[aria-expanded='true'] {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
-    background: var(--container-bg);
-}
-
-.header-button i {
-    font-size: 1.05rem;
-}
-
-@media (max-width: 540px) {
-    .header-container {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 0.5rem;
+        this.applyTheme('system');
+        this.loadSettings();
+        this.setupEventListeners();
+        this.setupThemeControls();
+        this.setupSettingsPanel();
+        this.setupCustomThemeControls();
+        this.setupBeatDisplayControls();
+        this.setupDataTransferControls();
+        this.setupPresetControls();
+        this.showPresetForm(
+            {
+                title: '',
+                tempo: this.tempo,
+                volume: Math.round(this.volume * 100),
+                beatsPerMeasure: this.beatsPerMeasure,
+                beatUnit: this.beatUnit,
+            },
+            { resetForm: true, focusTitle: false }
+        );
+        this.hidePresetForm({ silent: true });
+        this.setupKeyboardShortcuts();
+        this.setupVisibilityHandling();
+        this.setPlayButtonState(this.isPlaying);
+        this.saveSettings();
+        this.refreshPresetUI();
     }
 
-    .preset-form-grid {
-        grid-template-columns: minmax(0, 1fr);
+    setupEventListeners() {
+        if (this.playButton) {
+            this.playButton.addEventListener('click', () => this.togglePlay());
+        }
+        document.getElementById('bpmInput').addEventListener('change', (e) => this.updateTempo(e.target.value));
+
+        const tempoSlider = document.getElementById('tempoSlider');
+        tempoSlider.addEventListener('input', (e) => this.updateTempo(e.target.value));
+        tempoSlider.addEventListener(
+            'wheel',
+            (e) => {
+                e.preventDefault();
+                const delta = e.deltaMode === 1 ? e.deltaY : e.deltaY / 40;
+                const step = Math.sign(delta) * 2;
+                if (step !== 0) {
+                    this.updateTempo(this.tempo - step);
+                }
+            },
+            { passive: false }
+        );
+
+        const volumeControl = this.volumeSlider || document.getElementById('volumeControl');
+        if (volumeControl) {
+            volumeControl.addEventListener('input', (e) => this.updateVolume(e.target.value));
+            volumeControl.addEventListener(
+            'wheel',
+            (e) => {
+                e.preventDefault();
+                const delta = e.deltaMode === 1 ? e.deltaY : e.deltaY / 40;
+                const step = Math.sign(delta) * 2;
+                if (step !== 0) {
+                    this.updateVolume(this.volume * 100 - step);
+                }
+            },
+            { passive: false }
+            );
+        }
+
+        if (this.volumeValueInput) {
+            this.volumeValueInput.addEventListener('focus', (event) => event.target.select());
+            this.volumeValueInput.addEventListener('input', (event) => this.handleVolumeValueInput(event));
+            this.volumeValueInput.addEventListener('change', () => this.commitVolumeInput());
+            this.volumeValueInput.addEventListener('blur', () => this.commitVolumeInput());
+            this.volumeValueInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    this.commitVolumeInput();
+                    this.volumeValueInput.blur();
+                }
+            });
+        }
+
+        const tempoDownButton = document.getElementById('tempoDown');
+        const tempoUpButton = document.getElementById('tempoUp');
+        this.attachTempoButton(tempoDownButton, -1);
+        this.attachTempoButton(tempoUpButton, 1);
+        document.getElementById('beatsPerMeasure').addEventListener('change', (e) => {
+            this.beatsPerMeasure = parseInt(e.target.value, 10);
+            this.currentBeatNumber = 1;
+            this.clearActivePresetReference();
+            if (!this.isRestoringSettings) {
+                this.saveSettings();
+            }
+        });
+        document.getElementById('beatUnit').addEventListener('change', (e) => {
+            this.beatUnit = parseInt(e.target.value, 10) || this.beatUnit;
+            this.clearActivePresetReference();
+            if (!this.isRestoringSettings) {
+                this.saveSettings();
+            }
+        });
+
+        const beatDisplay = this.beatDisplayElement || document.getElementById('beatDisplay');
+        if (beatDisplay) {
+            beatDisplay.addEventListener('click', () => this.tapTempo());
+            beatDisplay.addEventListener(
+                'touchend',
+                (event) => this.handleBeatTouch(event),
+                { passive: false }
+            );
+        }
     }
 
-    .preset-form-time-signature-controls {
-        flex-wrap: wrap;
-        width: 100%;
+    setupThemeControls() {
+        if (!this.themeSelect) {
+            return;
+        }
+
+        this.themeSelect.addEventListener('change', (event) => {
+            const selectedTheme = event.target.value;
+            this.applyTheme(selectedTheme);
+            if (!this.isRestoringSettings) {
+                this.saveSettings();
+            }
+        });
     }
 
-    .preset-form-time-signature {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.75rem;
+    createThemeCatalog(entries = []) {
+        if (!Array.isArray(entries) || entries.length === 0) {
+            console.warn('Tempo Sync: theme entries are missing. The theme catalog will be empty.');
+            return [];
+        }
+
+        return entries.map((entry, index) => ({ ...entry, order: entry.order ?? index }));
     }
 
-    .preset-use-current-toggle {
-        align-self: flex-start;
-        margin-left: 0;
-        padding-bottom: 0;
+    setupSettingsPanel() {
+        if (!this.settingsButton || !this.settingsPanel) {
+            return;
+        }
+
+        this.settingsButton.addEventListener('click', () => this.openSettingsPanel());
+        this.settingsCloseButton?.addEventListener('click', () => this.closeSettingsPanel());
+        this.settingsPanelBackdrop?.addEventListener('click', () => this.closeSettingsPanel());
+
+        this.settingsTabs.forEach((tab) => {
+            tab.addEventListener('click', () => this.activateSettingsTab(tab.dataset.settingsTab));
+            tab.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    this.activateSettingsTab(tab.dataset.settingsTab);
+                }
+            });
+        });
+
+        this.themeListElement?.addEventListener('click', (event) => {
+            const target = event.target.closest('[data-theme-id]');
+            if (!target) {
+                return;
+            }
+
+            const themeId = target.getAttribute('data-theme-id');
+            if (!themeId) {
+                return;
+            }
+
+            this.applyTheme(themeId);
+            if (!this.isRestoringSettings) {
+                this.saveSettings();
+            }
+        });
+
+        this.renderThemeList();
     }
 
-    .header-actions {
-        gap: 0.5rem;
-        justify-self: end;
+    isSettingsPanelOpen() {
+        return this.settingsPanel?.classList.contains('is-open') ?? false;
     }
 
-    header h1 {
-        font-size: 1.75rem;
+    openSettingsPanel() {
+        if (!this.settingsPanel || this.settingsPanel.classList.contains('is-open')) {
+            return;
+        }
+
+        this.renderThemeList();
+        this.settingsPanel.classList.remove('is-closing');
+        this.settingsPanel.classList.add('is-open');
+        this.settingsPanel.setAttribute('aria-hidden', 'false');
+        this.settingsButton?.setAttribute('aria-expanded', 'true');
+        document.addEventListener('keydown', this.boundSettingsKeyHandler);
+        this.activateSettingsTab(this.activeSettingsTab);
+        const activeTab = this.settingsTabs.find((tab) => tab.dataset.settingsTab === this.activeSettingsTab);
+        activeTab?.focus?.();
+    }
+
+    closeSettingsPanel() {
+        if (!this.settingsPanel || (!this.isSettingsPanelOpen() && !this.settingsPanel.classList.contains('is-closing'))) {
+            return;
+        }
+
+        if (this.settingsPanel.classList.contains('is-closing')) {
+            return;
+        }
+
+        this.settingsPanel.classList.add('is-closing');
+        this.settingsPanel.setAttribute('aria-hidden', 'true');
+        this.settingsButton?.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('keydown', this.boundSettingsKeyHandler);
+
+        let fallbackTimeoutId = null;
+
+        const finalizeClose = () => {
+            if (fallbackTimeoutId !== null) {
+                window.clearTimeout(fallbackTimeoutId);
+            }
+            this.settingsPanel.classList.remove('is-closing');
+            this.settingsPanel.classList.remove('is-open');
+            this.settingsPanel.removeEventListener('transitionend', onTransitionEnd);
+            this.settingsButton?.focus?.();
+        };
+
+        const onTransitionEnd = (event) => {
+            if (event.target !== this.settingsPanel) {
+                return;
+            }
+
+            finalizeClose();
+        };
+
+        this.settingsPanel.addEventListener('transitionend', onTransitionEnd);
+
+        fallbackTimeoutId = window.setTimeout(() => {
+            finalizeClose();
+        }, 320);
+
+        requestAnimationFrame(() => {
+            this.settingsPanel.classList.remove('is-open');
+        });
+    }
+
+    activateSettingsTab(tabName) {
+        if (!tabName) {
+            return;
+        }
+
+        this.activeSettingsTab = tabName;
+
+        this.settingsTabs.forEach((tab) => {
+            const isActive = tab.dataset.settingsTab === tabName;
+            tab.classList.toggle('settings-tab--active', isActive);
+            tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+
+        this.settingsSections.forEach((section) => {
+            const isActive = section.dataset.settingsSection === tabName;
+            section.classList.toggle('settings-section--active', isActive);
+        });
+
+        if (tabName === 'theme') {
+            this.renderThemeList();
+        }
+    }
+
+    setupBeatDisplayControls() {
+        if (!this.beatFlashInputs || !this.beatFlashInputs.length) {
+            return;
+        }
+
+        this.beatFlashInputs.forEach((input) => {
+            input.addEventListener('change', (event) => {
+                if (!event.target.checked) {
+                    return;
+                }
+                const newMode = event.target.value === 'every' ? 'every' : 'downbeat';
+                if (this.beatFlashMode !== newMode) {
+                    this.beatFlashMode = newMode;
+                    if (!this.isRestoringSettings) {
+                        this.saveSettings();
+                    }
+                }
+            });
+        });
+
+        this.syncBeatFlashInputs();
+    }
+
+    syncBeatFlashInputs() {
+        if (!this.beatFlashInputs || !this.beatFlashInputs.length) {
+            return;
+        }
+
+        this.beatFlashInputs.forEach((input) => {
+            input.checked = input.value === this.beatFlashMode;
+        });
+    }
+
+    setupDataTransferControls() {
+        this.settingsExportButton?.addEventListener('click', () => this.handleDataExport());
+
+        this.settingsImportButton?.addEventListener('click', (event) => {
+            event.stopPropagation();
+            event.preventDefault();
+            this.requestDataImport();
+        });
+
+        this.settingsImportInput?.addEventListener('change', (event) => this.handleSettingsFileSelection(event));
+
+        if (this.settingsDropZone) {
+            this.settingsDropZone.addEventListener('click', (event) => {
+                if (event.target?.closest('.io-dropzone__browse')) {
+                    return;
+                }
+                this.requestDataImport();
+            });
+            this.settingsDropZone.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+                    event.preventDefault();
+                    this.requestDataImport();
+                }
+            });
+        }
+
+        this.setupDropZone(this.settingsDropZone, {
+            onFileDrop: (file) => this.handleSettingsImportFile(file),
+        });
+    }
+
+    async handleDataExport() {
+        const presetsAvailable = this.presets.length > 0;
+        const themeAvailable = true;
+        const selection = await this.promptDataSelection({
+            title: 'Export Data',
+            message: 'Choose what to include in your Tempo Sync export file.',
+            confirmText: 'Export',
+            items: [
+                {
+                    id: 'export-presets',
+                    value: 'presets',
+                    title: 'Presets',
+                    description: presetsAvailable ? 'All saved tempo, volume, and time signature presets.' : 'No presets available yet.',
+                    checked: presetsAvailable,
+                    disabled: !presetsAvailable,
+                },
+                {
+                    id: 'export-theme',
+                    value: 'theme',
+                    title: 'Custom Theme',
+                    description: 'Your accent color plus any advanced overrides.',
+                    checked: themeAvailable,
+                },
+            ],
+        });
+
+        if (!selection || selection.action !== 'Export') {
+            return;
+        }
+
+        const includePresets = selection.values.has('presets');
+        const includeTheme = selection.values.has('theme');
+
+        if (!includePresets && !includeTheme) {
+            await this.showAlert('Nothing Selected', 'Select at least one item to export.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        const payload = this.buildDataExportPayload({ includePresets, includeTheme });
+        const filename = `tempo-sync-export-${this.formatDateForFilename()}.json`;
+        this.downloadJson(payload, filename);
+
+        const includedItems = [
+            includePresets ? 'presets' : null,
+            includeTheme ? 'custom theme' : null,
+        ].filter(Boolean);
+        const includedLabels = includedItems.join(' and ');
+        const verb = includedItems.length > 1
+            ? 'are'
+            : includedItems[0] === 'presets'
+                ? 'are'
+                : 'is';
+
+        await this.showAlert(
+            'Export Ready',
+            `Your ${includedLabels} ${verb} saved as “${filename}”. Keep it safe to sync Tempo Sync anywhere.`,
+            [
+                { text: 'Nice', style: 'primary', primary: true },
+            ],
+        );
+    }
+
+    buildDataExportPayload({ includePresets = false, includeTheme = false } = {}) {
+        const payload = {
+            type: 'tempo-sync.bundle',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            includes: {
+                presets: Boolean(includePresets),
+                customTheme: Boolean(includeTheme),
+            },
+        };
+
+        if (includePresets) {
+            const presetPayload = this.buildPresetExportPayload();
+            payload.presets = presetPayload.presets;
+            payload.presetCount = presetPayload.presetCount;
+        }
+
+        if (includeTheme) {
+            const themePayload = this.buildCustomThemeExportPayload();
+            payload.customTheme = themePayload.theme;
+        }
+
+        return payload;
+    }
+
+    requestDataImport() {
+        if (!this.settingsImportInput) {
+            return;
+        }
+
+        this.settingsImportInput.value = '';
+        this.settingsImportInput.click();
+    }
+
+    async handleSettingsFileSelection(event) {
+        const input = event?.currentTarget instanceof HTMLInputElement
+            ? event.currentTarget
+            : event?.target instanceof HTMLInputElement
+                ? event.target
+                : null;
+
+        if (!input) {
+            return;
+        }
+
+        const files = Array.from(input.files || []);
+        if (!files.length) {
+            return;
+        }
+
+        for (const file of files) {
+            try {
+                // eslint-disable-next-line no-await-in-loop
+                await this.handleSettingsImportFile(file);
+            } catch (error) {
+                // Errors are surfaced within import handlers.
+            }
+        }
+
+        input.value = '';
+    }
+
+    async handleSettingsImportFile(file) {
+        let text;
+        try {
+            text = await file.text();
+        } catch (error) {
+            await this.showAlert('Import Failed', 'Unable to read the selected file.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (error) {
+            await this.showAlert('Import Failed', 'The selected file is not valid JSON.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        await this.handleDataImportPayload(data, { fileName: file?.name ?? null });
+    }
+
+    async handleDataImportPayload(data, { fileName = null } = {}) {
+        const presetArray = this.extractPresetArray(data) || [];
+        const themePayload = this.extractThemePayload(data);
+        const hasPresets = presetArray.length > 0;
+        const hasTheme = Boolean(themePayload);
+
+        if (!hasPresets && !hasTheme) {
+            await this.showAlert('Import Failed', 'No presets or custom theme data found in this file.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        const fileLabel = typeof fileName === 'string' && fileName.trim().length ? `“${fileName.trim()}”` : 'this file';
+
+        const selection = await this.promptDataSelection({
+            title: 'Import Data',
+            message: `Choose what to import from ${fileLabel}.`,
+            confirmText: 'Import',
+            items: [
+                {
+                    id: 'import-presets',
+                    value: 'presets',
+                    title: 'Presets',
+                    description: hasPresets ? `Found ${presetArray.length} ${presetArray.length === 1 ? 'preset' : 'presets'}.` : 'No presets in this file.',
+                    checked: hasPresets,
+                    disabled: !hasPresets,
+                },
+                {
+                    id: 'import-theme',
+                    value: 'theme',
+                    title: 'Custom Theme',
+                    description: hasTheme ? 'Includes a custom color palette.' : 'No custom theme found.',
+                    checked: hasTheme,
+                    disabled: !hasTheme,
+                },
+            ],
+        });
+
+        if (!selection || selection.action !== 'Import') {
+            return;
+        }
+
+        const importPresets = selection.values.has('presets');
+        const importTheme = selection.values.has('theme');
+
+        if (!importPresets && !importTheme) {
+            await this.showAlert('Nothing Selected', 'Select at least one item to import.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        if (importTheme && hasTheme) {
+            await this.importCustomThemeFromData(data, { fileName });
+        }
+
+        if (importPresets && hasPresets) {
+            await this.importPresetsFromData(data, { fileName });
+        }
+    }
+
+    async promptDataSelection({ title, message, items = [], confirmText = 'OK' } = {}) {
+        const { container, inputs } = this.createAlertCheckboxGroup(items);
+        const result = await this.showAlert(title, message, [
+            { text: 'Cancel', style: 'default' },
+            { text: confirmText, style: 'primary', primary: true },
+        ], {
+            extraContent: container,
+            onResult: ({ action }) => ({
+                action,
+                values: new Set(
+                    inputs
+                        .filter((input) => !input.disabled && input.checked)
+                        .map((input) => input.value)
+                ),
+            }),
+        });
+
+        if (!result || typeof result !== 'object') {
+            return null;
+        }
+
+        return {
+            action: result.action,
+            values: result.values,
+        };
+    }
+
+    createAlertCheckboxGroup(items = []) {
+        const container = document.createElement('div');
+        container.className = 'alert-checkbox-group';
+        const inputs = [];
+
+        items.forEach((item) => {
+            const label = document.createElement('label');
+            label.className = 'alert-checkbox';
+
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.id = item.id;
+            input.value = item.value;
+            input.checked = Boolean(item.checked);
+            input.disabled = Boolean(item.disabled);
+
+            const content = document.createElement('div');
+            content.className = 'alert-checkbox__content';
+
+            const title = document.createElement('div');
+            title.className = 'alert-checkbox__title';
+            title.textContent = item.title;
+
+            const description = document.createElement('p');
+            description.className = 'alert-checkbox__description';
+            description.textContent = item.description || '';
+
+            content.appendChild(title);
+            content.appendChild(description);
+
+            label.appendChild(input);
+            label.appendChild(content);
+
+            container.appendChild(label);
+            inputs.push(input);
+        });
+
+        return { container, inputs };
+    }
+
+    renderThemeList() {
+        if (!this.themeListElement) {
+            return;
+        }
+
+        const sections = this.buildThemeSections();
+        const activeTheme = this.currentTheme;
+
+        const markup = sections
+            .map((section) => {
+                const headingMarkup = section.title
+                    ? `
+                        <header class="theme-section__heading">
+                            <div class="theme-section__title">${this.escapeHtml(section.title)}</div>
+                            ${section.description ? `<p class="theme-section__description">${this.escapeHtml(section.description)}</p>` : ''}
+                        </header>
+                    `
+                    : '';
+
+                const itemsMarkup = section.items
+                    .map((theme) => this.renderThemeItem(theme, activeTheme))
+                    .join('');
+
+                return `
+                    <section class="theme-section" role="group" aria-label="${this.escapeHtml(section.accessibleTitle || section.title || 'Themes')}">
+                        ${headingMarkup}
+                        <div class="theme-grid" role="list">
+                            ${itemsMarkup}
+                        </div>
+                    </section>
+                `;
+            })
+            .join('');
+
+        this.themeListElement.innerHTML = markup;
+
+        queueMicrotask(() => {
+            if (!this.isSettingsPanelOpen()) {
+                return;
+            }
+            const activeButton = this.themeListElement?.querySelector('.theme-item--active');
+            activeButton?.focus?.();
+        });
+    }
+
+    setupCustomThemeControls() {
+        if (!this.customThemeForm) {
+            return;
+        }
+
+        this.customThemeForm.addEventListener('submit', (event) => this.handleCustomThemeSubmit(event));
+
+        this.customThemeColorInput?.addEventListener('input', (event) => {
+            const value = typeof event.target.value === 'string' ? event.target.value.toLowerCase() : '';
+            const normalized = this.normalizeHexColor(value) || value;
+            if (this.customThemeHexInput) {
+                this.customThemeHexInput.value = normalized;
+            }
+            this.clearCustomThemeError();
+            this.previewAdvancedPaletteForAccent(normalized);
+        });
+
+        this.customThemeHexInput?.addEventListener('input', () => {
+            this.clearCustomThemeError();
+            const candidate = this.customThemeHexInput?.value;
+            if (typeof candidate === 'string') {
+                this.previewAdvancedPaletteForAccent(candidate);
+            }
+        });
+
+        this.customThemeHexInput?.addEventListener('blur', () => this.commitCustomHexInput());
+        this.customThemeHexInput?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                this.handleCustomThemeSubmit(event);
+            }
+        });
+
+        this.customThemeResetButton?.addEventListener('click', (event) => {
+            event.preventDefault();
+            this.resetCustomTheme();
+        });
+
+        if (this.customThemeAdvancedToggle) {
+            this.customThemeAdvancedToggle.addEventListener('click', () => {
+                const expanded = this.customThemeAdvancedToggle.getAttribute('aria-expanded') === 'true';
+                this.setAdvancedFieldsVisibility(!expanded);
+            });
+        }
+
+        this.customThemeAdvancedInputs = this.customThemeFieldConfig.reduce((accumulator, field) => {
+            const colorInput = document.getElementById(field.colorInputId);
+            const textInput = document.getElementById(field.textInputId);
+            const resetButton = document.querySelector(`.custom-theme-field-reset[data-field-key="${field.key}"]`);
+
+            if (colorInput) {
+                colorInput.dataset.themeFieldKey = field.key;
+                colorInput.addEventListener('input', (event) => this.handleAdvancedColorInput(field.key, event));
+            }
+
+            if (textInput) {
+                textInput.dataset.themeFieldKey = field.key;
+                textInput.addEventListener('input', () => {
+                    this.clearCustomThemeError();
+                    this.updateAdvancedResetButtonState(field.key);
+                });
+                textInput.addEventListener('blur', () => this.commitAdvancedHexInput(field.key));
+                textInput.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        this.handleCustomThemeSubmit(event);
+                    }
+                });
+            }
+
+            if (resetButton) {
+                resetButton.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    this.resetAdvancedField(field.key);
+                });
+            }
+
+            accumulator[field.key] = {
+                colorInput,
+                textInput,
+                cssVar: field.cssVar,
+                label: field.label,
+                resetButton,
+            };
+            return accumulator;
+        }, {});
+
+        this.syncCustomThemeInputs(this.customTheme);
+        this.clearCustomThemeError();
+        this.setAdvancedFieldsVisibility(false);
+        this.updateCustomThemeSectionState();
+    }
+
+    focusCustomThemeInput() {
+        if (this.customThemeHexInput) {
+            this.customThemeHexInput.focus();
+            this.customThemeHexInput.select?.();
+            return;
+        }
+        this.customThemeColorInput?.focus?.();
+    }
+
+    setAdvancedFieldsVisibility(show) {
+        if (!this.customThemeAdvancedFields || !this.customThemeAdvancedToggle) {
+            return;
+        }
+
+        const fields = this.customThemeAdvancedFields;
+        const toggle = this.customThemeAdvancedToggle;
+
+        const clearTransitionState = () => {
+            fields.classList.remove('is-transitioning');
+        };
+
+        fields.setAttribute('aria-hidden', (!show).toString());
+
+        const handleCloseEnd = (event) => {
+            if (event?.target !== fields) {
+                return;
+            }
+            fields.hidden = true;
+            clearTransitionState();
+            fields.removeEventListener('transitionend', handleCloseEnd);
+        };
+
+        const handleOpenEnd = (event) => {
+            if (event?.target !== fields) {
+                return;
+            }
+            clearTransitionState();
+            fields.removeEventListener('transitionend', handleOpenEnd);
+        };
+
+        if (show) {
+            const accent = this.getCurrentAccentDraft();
+            fields.hidden = false;
+            fields.classList.add('is-transitioning');
+            fields.classList.remove('is-open');
+            // Force reflow so the transition plays when adding the class.
+            void fields.offsetHeight;
+            fields.classList.add('is-open');
+            fields.addEventListener('transitionend', handleOpenEnd);
+            window.setTimeout(() => handleOpenEnd({ target: fields }), 320);
+            this.previewAdvancedPaletteForAccent(accent);
+        } else {
+            if (!fields.hidden) {
+                fields.classList.add('is-transitioning');
+                fields.classList.remove('is-open');
+                fields.addEventListener('transitionend', handleCloseEnd);
+                window.setTimeout(() => handleCloseEnd({ target: fields }), 320);
+            } else {
+                fields.classList.remove('is-open');
+            }
+        }
+
+        toggle.setAttribute('aria-expanded', show.toString());
+        toggle.classList.toggle('is-open', show);
+        this.customThemeSection?.classList.toggle('custom-theme--advanced-open', show);
+    }
+
+    updateCustomThemeSectionState() {
+        if (!this.customThemeSection) {
+            return;
+        }
+
+        const isActive = this.currentTheme === 'custom';
+        this.customThemeSection.classList.toggle('is-active', isActive);
+        if (this.customThemeBadge) {
+            this.customThemeBadge.hidden = !isActive;
+        }
+    }
+
+    syncCustomThemeInputs(theme = this.customTheme) {
+        const accent = this.normalizeHexColor(theme?.accent) || this.defaultCustomAccent;
+
+        if (this.customThemeColorInput) {
+            this.customThemeColorInput.value = accent;
+        }
+
+        if (this.customThemeHexInput) {
+            this.customThemeHexInput.value = accent;
+            this.customThemeHexInput.placeholder = accent;
+        }
+
+        this.syncAdvancedCustomThemeInputs(theme?.overrides || {}, accent);
+    }
+
+    syncAdvancedCustomThemeInputs(overrides = {}, accent = this.customTheme?.accent || this.defaultCustomAccent) {
+        const palette = this.buildCustomThemePalette({ accent, overrides: {} });
+        Object.entries(this.customThemeAdvancedInputs || {}).forEach(([key, entry]) => {
+            if (!entry) {
+                return;
+            }
+
+            const override = overrides[key] || '';
+            const fallback = palette[key] || accent;
+
+            if (entry.colorInput) {
+                entry.colorInput.value = override || fallback;
+            }
+
+            if (entry.textInput) {
+                entry.textInput.value = override;
+                entry.textInput.placeholder = fallback;
+            }
+
+            this.updateAdvancedResetButtonState(key);
+        });
+    }
+
+    updateAdvancedResetButtonState(key) {
+        const entry = this.customThemeAdvancedInputs?.[key];
+        if (!entry?.resetButton) {
+            return;
+        }
+
+        const hasOverride = Boolean(entry.textInput?.value?.trim());
+        entry.resetButton.disabled = !hasOverride;
+        entry.resetButton.classList.toggle('is-active', hasOverride);
+    }
+
+    previewAdvancedPaletteForAccent(accentCandidate) {
+        if (!this.customThemeAdvancedInputs) {
+            return;
+        }
+
+        const accent = this.normalizeHexColor(accentCandidate) || this.getCurrentAccentDraft();
+        const palette = this.buildCustomThemePalette({ accent, overrides: {} });
+
+        Object.entries(this.customThemeAdvancedInputs).forEach(([key, entry]) => {
+            if (!entry) {
+                return;
+            }
+
+            const hasOverride = Boolean(entry.textInput?.value?.trim());
+            const fallback = palette[key] || accent;
+
+            if (!hasOverride && entry.colorInput) {
+                entry.colorInput.value = fallback;
+            }
+
+            if (entry.textInput) {
+                entry.textInput.placeholder = fallback;
+            }
+
+            this.updateAdvancedResetButtonState(key);
+        });
+    }
+
+    getCurrentAccentDraft() {
+        const hexValue = this.customThemeHexInput?.value?.trim();
+        const colorValue = this.customThemeColorInput?.value;
+        return (
+            this.normalizeHexColor(hexValue) ||
+            this.normalizeHexColor(colorValue) ||
+            this.customTheme?.accent ||
+            this.defaultCustomAccent
+        );
+    }
+
+    resetAdvancedField(key) {
+        const entry = this.customThemeAdvancedInputs?.[key];
+        if (!entry) {
+            return;
+        }
+
+        const accent = this.getCurrentAccentDraft();
+        const palette = this.buildCustomThemePalette({ accent, overrides: {} });
+        const fallback = palette[key] || accent;
+
+        if (entry.textInput) {
+            entry.textInput.value = '';
+            entry.textInput.placeholder = fallback;
+        }
+
+        if (entry.colorInput) {
+            entry.colorInput.value = fallback;
+        }
+
+        this.updateAdvancedResetButtonState(key);
+        this.clearCustomThemeError();
+    }
+
+    showCustomThemeError(message) {
+        if (!this.customThemeError) {
+            return;
+        }
+        this.customThemeError.hidden = false;
+        this.customThemeError.textContent = message;
+    }
+
+    clearCustomThemeError() {
+        if (!this.customThemeError) {
+            return;
+        }
+        this.customThemeError.hidden = true;
+        this.customThemeError.textContent = '';
+    }
+
+    handleCustomThemeSubmit(event) {
+        event.preventDefault();
+        const rawAccent = this.customThemeHexInput?.value?.trim() || this.customThemeColorInput?.value || '';
+        const accent = this.normalizeHexColor(rawAccent);
+        if (!accent) {
+            this.showCustomThemeError('Please enter a valid hex color like #1f2937.');
+            return;
+        }
+
+        const overridesResult = this.collectCustomThemeOverrides();
+        if (!overridesResult.success) {
+            this.showCustomThemeError(overridesResult.error || 'Please review your advanced colors.');
+            return;
+        }
+
+        this.clearCustomThemeError();
+        this.updateCustomThemeConfig({ accent, overrides: overridesResult.overrides });
+        this.applyTheme('custom');
+        if (!this.isRestoringSettings) {
+            this.saveSettings();
+        }
+    }
+
+    commitCustomHexInput() {
+        if (!this.customThemeHexInput) {
+            return;
+        }
+        const normalized = this.normalizeHexColor(this.customThemeHexInput.value);
+        if (normalized) {
+            this.customThemeHexInput.value = normalized;
+            if (this.customThemeColorInput) {
+                this.customThemeColorInput.value = normalized;
+            }
+            this.previewAdvancedPaletteForAccent(normalized);
+        } else {
+            this.previewAdvancedPaletteForAccent(this.getCurrentAccentDraft());
+        }
+    }
+
+    handleAdvancedColorInput(key, event) {
+        const entry = this.customThemeAdvancedInputs?.[key];
+        if (!entry || !entry.textInput) {
+            return;
+        }
+
+        const value = typeof event.target.value === 'string' ? event.target.value.toLowerCase() : '';
+        const normalized = this.normalizeHexColor(value) || value;
+        entry.textInput.value = normalized;
+        this.clearCustomThemeError();
+        this.updateAdvancedResetButtonState(key);
+    }
+
+    commitAdvancedHexInput(key) {
+        const entry = this.customThemeAdvancedInputs?.[key];
+        if (!entry || !entry.textInput) {
+            return;
+        }
+
+        const trimmed = entry.textInput.value?.trim();
+        if (!trimmed) {
+            return;
+        }
+
+        const normalized = this.normalizeHexColor(trimmed);
+        if (!normalized) {
+            this.showCustomThemeError(`Please enter a valid hex color for ${entry.label}.`);
+            return;
+        }
+
+        entry.textInput.value = normalized;
+        if (entry.colorInput) {
+            entry.colorInput.value = normalized;
+        }
+        this.updateAdvancedResetButtonState(key);
+    }
+
+    collectCustomThemeOverrides() {
+        const overrides = {};
+        for (const field of this.customThemeFieldConfig) {
+            const entry = this.customThemeAdvancedInputs?.[field.key];
+            if (!entry || !entry.textInput) {
+                continue;
+            }
+
+            const value = entry.textInput.value?.trim();
+            if (!value) {
+                continue;
+            }
+
+            const normalized = this.normalizeHexColor(value);
+            if (!normalized) {
+                return {
+                    success: false,
+                    error: `Please enter a valid hex color for ${entry.label}.`,
+                };
+            }
+
+            overrides[field.key] = normalized;
+            if (entry.colorInput) {
+                entry.colorInput.value = normalized;
+            }
+        }
+
+        return { success: true, overrides };
+    }
+
+    resetCustomTheme() {
+        this.clearCustomThemeError();
+        const shouldReapply = this.currentTheme === 'custom';
+        this.updateCustomThemeConfig({ accent: this.defaultCustomAccent, overrides: {} });
+
+        if (shouldReapply) {
+            this.applyTheme('custom');
+        } else {
+            this.clearCustomThemeProperties();
+        }
+
+        this.syncAdvancedCustomThemeInputs({}, this.defaultCustomAccent);
+
+        if (!this.isRestoringSettings) {
+            this.saveSettings();
+        }
+    }
+
+    buildCustomThemeExportPayload() {
+        const theme = this.normalizeCustomTheme(this.customTheme);
+        return {
+            type: 'tempo-sync.custom-theme',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            theme,
+        };
+    }
+
+    async importCustomThemeFromData(data, { fileName = null } = {}) {
+        const payloadKind = this.identifyImportPayloadKind(data);
+        if (payloadKind !== 'customTheme' && payloadKind !== 'bundle') {
+            const message = this.formatImportMismatchMessage('customTheme', payloadKind, fileName);
+            await this.showAlert('Import Theme Failed', message, [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        const themePayload = this.extractThemePayload(data);
+        if (!themePayload || typeof themePayload !== 'object') {
+            await this.showAlert('Import Theme Failed', 'No theme information was found in the selected file.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        const normalized = this.normalizeCustomTheme(themePayload);
+        const accentPreview = normalized?.accent || this.defaultCustomAccent;
+        const fileLabel = typeof fileName === 'string' && fileName.trim().length ? `“${fileName.trim()}”` : 'this theme file';
+
+        const confirmation = await this.showAlert(
+            'Apply Imported Theme',
+            `${fileLabel} will replace your current custom palette${this.currentTheme === 'custom' ? ' and override the active custom theme' : ''}. Accent preview: ${accentPreview}. Continue?`,
+            [
+                { text: 'Cancel', style: 'default' },
+                { text: 'Apply', style: 'primary', primary: true },
+            ],
+        );
+
+        if (confirmation !== 'Apply') {
+            return;
+        }
+
+        this.updateCustomThemeConfig(normalized, { applyImmediately: true });
+        this.applyTheme('custom');
+        if (!this.isRestoringSettings) {
+            this.saveSettings();
+        }
+
+        await this.showAlert('Theme Imported', 'Your custom theme has been applied successfully.', [
+            { text: 'Great', style: 'primary', primary: true },
+        ]);
+    }
+
+    updateCustomThemeConfig({ accent = this.customTheme?.accent, overrides = this.customTheme?.overrides } = {}, { applyImmediately = false } = {}) {
+        const normalizedAccent = this.normalizeHexColor(accent) || this.defaultCustomAccent;
+        const normalizedOverrides = this.normalizeCustomOverrides(overrides);
+        this.customTheme = {
+            accent: normalizedAccent,
+            overrides: normalizedOverrides,
+        };
+
+        this.syncCustomThemeInputs(this.customTheme);
+
+        if (applyImmediately) {
+            this.applyCustomThemeProperties();
+        }
+        this.updateCustomThemeSectionState();
+    }
+
+    normalizeHexColor(value) {
+        if (typeof value !== 'string') {
+            return null;
+        }
+        const trimmed = value.trim().toLowerCase();
+        if (!trimmed) {
+            return null;
+        }
+        const hex = trimmed.startsWith('#') ? trimmed.slice(1) : trimmed;
+        if (hex.length === 3 && /^[0-9a-f]{3}$/i.test(hex)) {
+            return `#${hex.split('').map((char) => char + char).join('')}`.toLowerCase();
+        }
+        if (hex.length === 6 && /^[0-9a-f]{6}$/i.test(hex)) {
+            return `#${hex}`.toLowerCase();
+        }
+        return null;
+    }
+
+    normalizeCustomTheme(theme) {
+        const accent = this.normalizeHexColor(theme?.accent) || this.defaultCustomAccent;
+        const overrides = this.normalizeCustomOverrides(theme?.overrides || {});
+        return { accent, overrides };
+    }
+
+    normalizeCustomOverrides(overrides) {
+        if (!overrides || typeof overrides !== 'object') {
+            return {};
+        }
+
+        const result = {};
+        this.customThemeFieldConfig.forEach((field) => {
+            const normalized = this.normalizeHexColor(overrides[field.key]);
+            if (normalized) {
+                result[field.key] = normalized;
+            }
+        });
+        return result;
+    }
+
+    buildCustomThemePalette(theme = this.customTheme) {
+        const accent = this.normalizeHexColor(theme?.accent) || this.defaultCustomAccent;
+        const overrides = this.normalizeCustomOverrides(theme?.overrides || {});
+
+        const palette = {
+            accent,
+            primaryHover: overrides.primaryHover || this.mixColors(accent, '#ffffff', 0.25),
+            background: overrides.background || this.mixColors('#f9fafb', accent, 0.12),
+            container: overrides.container || this.mixColors('#ffffff', accent, 0.08),
+            text: overrides.text || this.mixColors('#111827', accent, 0.18),
+            textSecondary: overrides.textSecondary || this.mixColors('#475569', accent, 0.24),
+            border: overrides.border || this.mixColors('#dbeafe', accent, 0.2),
+            flash: overrides.flash || this.mixColors(accent, '#ffffff', 0.35),
+        };
+
+        return palette;
+    }
+
+    mixColors(colorA, colorB, weight = 0.5) {
+        const normalizedA = this.normalizeHexColor(colorA) || '#000000';
+        const normalizedB = this.normalizeHexColor(colorB) || '#ffffff';
+        const rgbA = this.hexToRgb(normalizedA);
+        const rgbB = this.hexToRgb(normalizedB);
+        const w = this.clamp(weight, 0, 1);
+
+        const r = Math.round(rgbA.r * (1 - w) + rgbB.r * w);
+        const g = Math.round(rgbA.g * (1 - w) + rgbB.g * w);
+        const b = Math.round(rgbA.b * (1 - w) + rgbB.b * w);
+
+        return this.rgbToHex(r, g, b);
+    }
+
+    hexToRgb(hex) {
+        const normalized = this.normalizeHexColor(hex) || '#000000';
+        const value = normalized.slice(1, 7);
+        const bigint = parseInt(value, 16);
+        const r = (bigint >> 16) & 255;
+        const g = (bigint >> 8) & 255;
+        const b = bigint & 255;
+        return { r, g, b };
+    }
+
+    rgbToHex(r, g, b) {
+        const toHex = (component) => {
+            const clamped = Math.max(0, Math.min(255, component));
+            return clamped.toString(16).padStart(2, '0');
+        };
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+
+    clamp(value, min = 0, max = 1) {
+        return Math.min(Math.max(value, min), max);
+    }
+
+    applyCustomThemeProperties() {
+        const palette = this.buildCustomThemePalette();
+        Object.entries(this.customThemeVariableMap).forEach(([key, cssVar]) => {
+            const value = palette[key];
+            if (value) {
+                document.documentElement.style.setProperty(cssVar, value);
+            } else {
+                document.documentElement.style.removeProperty(cssVar);
+            }
+        });
+    }
+
+    clearCustomThemeProperties() {
+        Object.values(this.customThemeVariableMap).forEach((cssVar) => {
+            document.documentElement.style.removeProperty(cssVar);
+        });
+    }
+
+    buildThemeSections() {
+        const groups = [
+            {
+                id: 'system',
+                title: 'System',
+                description: 'Let Tempo Sync follow your operating system preference.',
+                accessibleTitle: 'System theme',
+            },
+            {
+                id: 'light',
+                title: 'Light themes',
+                description: 'Bright palettes that stand out in daylight practice.',
+            },
+            {
+                id: 'dark',
+                title: 'Dark themes',
+                description: 'Low-light palettes that keep your focus at night.',
+            },
+        ];
+
+        const grouped = this.themeCatalog.reduce((accumulator, theme) => {
+            const key = theme.group;
+            if (!accumulator[key]) {
+                accumulator[key] = [];
+            }
+            accumulator[key].push(theme);
+            return accumulator;
+        }, {});
+
+        return groups
+            .map((group) => {
+                const items = (grouped[group.id] || []).slice().sort((a, b) => a.order - b.order);
+                return items.length ? { ...group, items } : null;
+            })
+            .filter(Boolean);
+    }
+
+    renderThemeItem(theme, activeTheme) {
+        const isActive = activeTheme === theme.id;
+        const isSystem = theme.id === 'system';
+        const swatchValues = Array.isArray(theme.swatches) ? theme.swatches : [];
+        const hasSwatches = swatchValues.length > 0;
+        const swatchesMarkup = swatchValues
+            .map((swatch) => `<span class="theme-item__swatch" style="--swatch-color: ${this.escapeHtml(swatch)};"></span>`)
+            .join('');
+        const classes = ['theme-item'];
+        if (isActive) {
+            classes.push('theme-item--active');
+        }
+        if (isSystem) {
+            classes.push('theme-item--system');
+        }
+
+        return `
+            <button type="button" class="${classes.join(' ')}" data-theme-id="${this.escapeHtml(theme.id)}" role="listitem" aria-pressed="${isActive ? 'true' : 'false'}">
+                ${hasSwatches
+                    ? `<div class="theme-item__swatches" aria-hidden="true">${swatchesMarkup}</div>`
+                    : ''}
+                <div class="theme-item__info">
+                    <span class="theme-item__name">${this.escapeHtml(theme.label)}</span>
+                    ${theme.description ? `<span class="theme-item__description">${this.escapeHtml(theme.description)}</span>` : ''}
+                </div>
+                <span class="theme-item__state" aria-hidden="true">
+                    <i class="fa-solid fa-check" aria-hidden="true"></i>
+                    <span class="theme-item__state-text">Active</span>
+                </span>
+            </button>
+        `;
+    }
+
+    setupPresetControls() {
+        if (!this.presetPanel || !this.presetButton) {
+            return;
+        }
+
+        this.presetButton.addEventListener('click', () => this.openPresetPanel());
+        this.presetCloseButton?.addEventListener('click', () => this.closePresetPanel());
+        this.presetPanelBackdrop?.addEventListener('click', () => this.closePresetPanel());
+
+        this.presetAddCustomToggle?.addEventListener('click', () => {
+            if (this.isPresetFormVisible) {
+                this.hidePresetForm();
+                return;
+            }
+
+            this.showPresetForm(
+                {
+                    title: '',
+                    tempo: this.tempo,
+                    volume: Math.round(this.volume * 100),
+                    beatsPerMeasure: this.beatsPerMeasure,
+                    beatUnit: this.beatUnit,
+                },
+                { resetForm: true, focusTitle: true }
+            );
+        });
+
+        this.presetUseCurrentCheckbox?.addEventListener('change', (event) => {
+            const isChecked = event.target.checked;
+            if (isChecked) {
+                this.populatePresetFormWithCurrent();
+            }
+            this.setPresetFormFieldsDisabled(isChecked);
+        });
+
+        if (this.presetForm) {
+            this.presetForm.addEventListener('submit', (event) => this.handlePresetFormSubmit(event));
+        }
+
+        if (this.presetSortSelect) {
+            this.presetSortSelect.value = this.presetViewMode;
+            this.updatePresetSortUI();
+            this.presetSortSelect.addEventListener('change', (event) => {
+                const value = event.target.value;
+                const allowedModes = ['time', 'custom'];
+                this.presetViewMode = allowedModes.includes(value) ? value : 'time';
+                this.updatePresetSortUI();
+                this.saveSettings();
+                this.renderPresetList();
+            });
+        }
+
+        if (this.presetGroupByTimeCheckbox) {
+            this.presetGroupByTimeCheckbox.checked = this.presetGroupByTime;
+            this.presetGroupByTimeCheckbox.addEventListener('change', (event) => {
+                this.presetGroupByTime = event.target.checked;
+                this.saveSettings();
+                this.renderPresetList();
+            });
+        }
+
+        this.presetListElement?.addEventListener('click', (event) => this.handlePresetListClick(event));
+        this.presetHistoryCard?.addEventListener('click', (event) => {
+            const actionButton = event.target.closest('[data-last-played-action]');
+            if (!actionButton) {
+                return;
+            }
+
+            const action = actionButton.getAttribute('data-last-played-action');
+            if (action === 'apply') {
+                this.applyLastPlayedSnapshot();
+            }
+        });
+    }
+
+    setupDropZone(element, { onFileDrop } = {}) {
+        if (!element || typeof onFileDrop !== 'function') {
+            return;
+        }
+
+        let dragCounter = 0;
+
+        const highlight = (shouldHighlight) => {
+            if (shouldHighlight) {
+                element.classList.add('is-dragover');
+            } else {
+                element.classList.remove('is-dragover');
+            }
+        };
+
+        const handleDragEnter = (event) => {
+            if (!this.isFileDrag(event)) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            dragCounter += 1;
+            highlight(true);
+        };
+
+        const handleDragOver = (event) => {
+            if (!this.isFileDrag(event)) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            event.dataTransfer.dropEffect = 'copy';
+        };
+
+        const handleDragLeave = (event) => {
+            if (!this.isFileDrag(event)) {
+                return;
+            }
+
+            event.stopPropagation();
+            dragCounter = Math.max(dragCounter - 1, 0);
+            if (dragCounter === 0) {
+                highlight(false);
+            }
+        };
+
+        const handleDrop = (event) => {
+            if (!this.isFileDrag(event)) {
+                highlight(false);
+                dragCounter = 0;
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            dragCounter = 0;
+            highlight(false);
+
+            const file = this.extractFirstFileFromDataTransfer(event.dataTransfer);
+            if (!file) {
+                return;
+            }
+
+            onFileDrop(file);
+        };
+
+        element.addEventListener('dragenter', handleDragEnter);
+        element.addEventListener('dragover', handleDragOver);
+        element.addEventListener('dragleave', handleDragLeave);
+        element.addEventListener('drop', handleDrop);
+    }
+
+    isFileDrag(event) {
+        const types = event?.dataTransfer?.types;
+        if (!types) {
+            return false;
+        }
+        return Array.from(types).includes('Files');
+    }
+
+    extractFirstFileFromDataTransfer(dataTransfer) {
+        if (!dataTransfer) {
+            return null;
+        }
+
+        if (dataTransfer.files && dataTransfer.files.length > 0) {
+            return dataTransfer.files[0];
+        }
+
+        if (dataTransfer.items && dataTransfer.items.length > 0) {
+            const fileItem = Array.from(dataTransfer.items).find((item) => item.kind === 'file');
+            if (fileItem && typeof fileItem.getAsFile === 'function') {
+                return fileItem.getAsFile();
+            }
+        }
+
+        return null;
+    }
+
+    isPresetPanelOpen() {
+        return this.presetPanel?.classList.contains('is-open') ?? false;
+    }
+
+    openPresetPanel() {
+        if (!this.presetPanel) {
+            return;
+        }
+
+    this.hidePresetForm({ resetForm: true, silent: true });
+    this.refreshPresetUI();
+        this.presetPanel.classList.remove('is-closing');
+        this.presetPanel.classList.add('is-open');
+        this.presetPanel.setAttribute('aria-hidden', 'false');
+        this.presetButton?.setAttribute('aria-expanded', 'true');
+        document.addEventListener('keydown', this.boundPresetKeyHandler);
+        (this.presetAddCustomToggle || this.presetCloseButton)?.focus?.();
+    }
+
+    closePresetPanel() {
+        if (!this.presetPanel || (!this.isPresetPanelOpen() && !this.presetPanel.classList.contains('is-closing'))) {
+            return;
+        }
+
+        if (this.presetPanel.classList.contains('is-closing')) {
+            return;
+        }
+
+        this.presetPanel.classList.add('is-closing');
+        this.presetPanel.setAttribute('aria-hidden', 'true');
+        this.presetButton?.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('keydown', this.boundPresetKeyHandler);
+        this.hidePresetForm({ resetForm: true, silent: true });
+
+        let fallbackTimeoutId = null;
+
+        const finalizeClose = () => {
+            if (fallbackTimeoutId !== null) {
+                window.clearTimeout(fallbackTimeoutId);
+            }
+            this.presetPanel.classList.remove('is-closing');
+            this.presetPanel.classList.remove('is-open');
+            this.presetPanel.removeEventListener('transitionend', onTransitionEnd);
+            this.presetButton?.focus?.();
+        };
+
+        const onTransitionEnd = (event) => {
+            if (event.target !== this.presetPanel) {
+                return;
+            }
+
+            finalizeClose();
+        };
+
+        this.presetPanel.addEventListener('transitionend', onTransitionEnd);
+
+        fallbackTimeoutId = window.setTimeout(() => {
+            finalizeClose();
+        }, 320);
+
+        requestAnimationFrame(() => {
+            this.presetPanel.classList.remove('is-open');
+        });
+    }
+
+    showPresetForm(defaults = {}, { resetForm = false, focusTitle = true } = {}) {
+        if (!this.presetForm) {
+            return;
+        }
+
+        this.presetFormMode = 'create';
+
+        if (resetForm && this.presetUseCurrentCheckbox) {
+            this.presetUseCurrentCheckbox.checked = false;
+        }
+
+        this.setPresetFormFieldsDisabled(this.presetUseCurrentCheckbox?.checked ?? false);
+
+        if (this.presetTitleInput) {
+            if (Object.prototype.hasOwnProperty.call(defaults, 'title')) {
+                this.presetTitleInput.value = defaults.title ?? '';
+            } else if (resetForm) {
+                this.presetTitleInput.value = '';
+            }
+        }
+
+        if (this.presetTempoInput) {
+            const tempoValue = Object.prototype.hasOwnProperty.call(defaults, 'tempo')
+                ? defaults.tempo
+                : resetForm
+                    ? this.tempo
+                    : this.presetTempoInput.value || this.tempo;
+            this.presetTempoInput.value = tempoValue;
+        }
+
+        if (this.presetVolumeInput) {
+            const volumeValue = Object.prototype.hasOwnProperty.call(defaults, 'volume')
+                ? defaults.volume
+                : resetForm
+                    ? Math.round(this.volume * 100)
+                    : this.presetVolumeInput.value || Math.round(this.volume * 100);
+            this.presetVolumeInput.value = volumeValue;
+        }
+
+        if (this.presetBeatsInput) {
+            const beatsValue = Object.prototype.hasOwnProperty.call(defaults, 'beatsPerMeasure')
+                ? defaults.beatsPerMeasure
+                : resetForm
+                    ? this.beatsPerMeasure
+                    : this.presetBeatsInput.value || this.beatsPerMeasure;
+            this.presetBeatsInput.value = beatsValue.toString();
+        }
+
+        if (this.presetBeatUnitInput) {
+            const beatUnitValue = Object.prototype.hasOwnProperty.call(defaults, 'beatUnit')
+                ? defaults.beatUnit
+                : resetForm
+                    ? this.beatUnit
+                    : this.presetBeatUnitInput.value || this.beatUnit;
+            this.presetBeatUnitInput.value = beatUnitValue.toString();
+        }
+
+    if (this.presetFormHideTimeoutId !== null) {
+        window.clearTimeout(this.presetFormHideTimeoutId);
+        this.presetFormHideTimeoutId = null;
+    }
+
+    this.presetForm.hidden = false;
+    this.presetForm.setAttribute('aria-hidden', 'false');
+    this.presetForm.classList.add('preset-form--animating');
+    requestAnimationFrame(() => {
+        this.presetForm.classList.add('preset-form--visible');
+        requestAnimationFrame(() => {
+            this.presetForm.classList.remove('preset-form--animating');
+        });
+    });
+
+    this.isPresetFormVisible = true;
+    this.presetAddCustomToggle?.setAttribute('aria-expanded', 'true');
+    this.presetAddCustomToggle?.classList.add('is-active');
+
+        if (focusTitle) {
+            queueMicrotask(() => {
+                this.presetTitleInput?.focus?.();
+            });
+        }
+    }
+
+    hidePresetForm({ resetForm = false, silent = false } = {}) {
+        if (!this.presetForm) {
+            return;
+        }
+
+        if (resetForm) {
+            this.presetTitleInput && (this.presetTitleInput.value = '');
+            this.presetTempoInput && (this.presetTempoInput.value = this.tempo.toString());
+            this.presetVolumeInput && (this.presetVolumeInput.value = Math.round(this.volume * 100).toString());
+            this.presetBeatsInput && (this.presetBeatsInput.value = this.beatsPerMeasure.toString());
+            this.presetBeatUnitInput && (this.presetBeatUnitInput.value = this.beatUnit.toString());
+        }
+
+    if (this.presetFormHideTimeoutId !== null) {
+        window.clearTimeout(this.presetFormHideTimeoutId);
+        this.presetFormHideTimeoutId = null;
+    }
+
+    this.presetForm.classList.remove('preset-form--animating');
+    const currentHeight = this.presetForm.scrollHeight;
+    if (Number.isFinite(currentHeight) && currentHeight > 0) {
+        this.presetForm.style.maxHeight = `${currentHeight}px`;
+        // Force reflow so browsers register the starting height before collapse.
+        // eslint-disable-next-line no-unused-expressions
+        this.presetForm.offsetHeight;
+    }
+    this.presetForm.classList.remove('preset-form--visible');
+    requestAnimationFrame(() => {
+        this.presetForm.style.maxHeight = '';
+    });
+    this.presetForm.setAttribute('aria-hidden', 'true');
+    this.isPresetFormVisible = false;
+    this.presetAddCustomToggle?.setAttribute('aria-expanded', 'false');
+    this.presetAddCustomToggle?.classList.remove('is-active');
+
+    this.presetFormHideTimeoutId = window.setTimeout(() => {
+        this.presetForm.hidden = true;
+        this.presetForm.classList.remove('preset-form--animating');
+        this.presetFormHideTimeoutId = null;
+    }, 360);
+        if (this.presetUseCurrentCheckbox) {
+            this.presetUseCurrentCheckbox.checked = false;
+        }
+        this.setPresetFormFieldsDisabled(false);
+
+        if (!silent) {
+            this.presetAddCustomToggle?.focus?.();
+        }
+    }
+
+    populatePresetFormWithCurrent() {
+        if (!this.presetForm) {
+            return;
+        }
+
+        if (this.presetTempoInput) {
+            this.presetTempoInput.value = this.tempo;
+        }
+
+        if (this.presetVolumeInput) {
+            this.presetVolumeInput.value = Math.round(this.volume * 100);
+        }
+
+        if (this.presetBeatsInput) {
+            this.presetBeatsInput.value = this.beatsPerMeasure.toString();
+        }
+
+        if (this.presetBeatUnitInput) {
+            this.presetBeatUnitInput.value = this.beatUnit.toString();
+        }
+    }
+
+    setPresetFormFieldsDisabled(disabled) {
+        const fields = [
+            this.presetTempoInput,
+            this.presetVolumeInput,
+            this.presetBeatsInput,
+            this.presetBeatUnitInput,
+        ];
+
+        fields.forEach((field) => {
+            if (field) {
+                field.disabled = disabled;
+            }
+        });
+    }
+
+    updatePresetSortUI() {
+        const isTimeMode = this.presetViewMode === 'time';
+        if (this.presetGroupToggle) {
+            this.presetGroupToggle.hidden = !isTimeMode;
+            this.presetGroupToggle.setAttribute('aria-hidden', (!isTimeMode).toString());
+        }
+
+        if (isTimeMode && this.presetGroupByTimeCheckbox) {
+            this.presetGroupByTimeCheckbox.checked = this.presetGroupByTime;
+            this.presetGroupByTimeCheckbox.disabled = false;
+        } else if (this.presetGroupByTimeCheckbox) {
+            this.presetGroupByTimeCheckbox.disabled = true;
+        }
+    }
+
+    handlePresetFormSubmit(event) {
+        event.preventDefault();
+        if (!this.presetTitleInput || !this.presetTempoInput || !this.presetVolumeInput || !this.presetBeatsInput || !this.presetBeatUnitInput) {
+            return;
+        }
+
+        const title = this.presetTitleInput.value.trim();
+        const tempo = Number.parseInt(this.presetTempoInput.value, 10);
+        const volume = Number.parseInt(this.presetVolumeInput.value, 10);
+        const beatsPerMeasure = Number.parseInt(this.presetBeatsInput.value, 10);
+        const beatUnit = Number.parseInt(this.presetBeatUnitInput.value, 10);
+
+        if (!title) {
+            this.presetTitleInput.focus();
+            return;
+        }
+
+        const preset = this.createPreset({ title, tempo, volume, beatsPerMeasure, beatUnit });
+        this.presets.push(preset);
+        this.saveSettings();
+        this.renderPresetList();
+        this.hidePresetForm({ resetForm: true });
+    }
+
+    handlePresetListClick(event) {
+        const actionButton = event.target.closest('[data-preset-action]');
+        if (!actionButton) {
+            return;
+        }
+
+        const action = actionButton.getAttribute('data-preset-action');
+        const presetId = actionButton.getAttribute('data-preset-id');
+        if (!action || !presetId) {
+            return;
+        }
+
+        if (action === 'apply') {
+            this.applyPreset(presetId);
+        } else if (action === 'delete') {
+            this.deletePresetById(presetId);
+        } else if (action === 'move-up') {
+            this.movePreset(presetId, -1);
+        } else if (action === 'move-down') {
+            this.movePreset(presetId, 1);
+        }
+    }
+
+    refreshPresetUI() {
+        if (this.presetSortSelect) {
+            this.presetSortSelect.value = this.presetViewMode;
+        }
+
+        this.updatePresetSortUI();
+        this.renderLastPlayed();
+        this.renderPresetList();
+    }
+
+    renderLastPlayed() {
+        if (!this.presetHistorySection || !this.presetHistoryCard) {
+            return;
+        }
+
+        const title = 'Last Played';
+        this.presetHistorySection.hidden = false;
+        this.presetHistorySection.setAttribute('aria-hidden', 'false');
+
+        if (!this.lastPlayed) {
+            this.presetHistoryCard.classList.add('preset-card--empty');
+            this.presetHistoryCard.innerHTML = `
+                <div class="preset-card__header">
+                    <div class="preset-card__info">
+                        <div class="preset-card__title">${this.escapeHtml(title)}</div>
+                        <div class="preset-card__meta preset-card__meta--single">
+                            <span>No recent session yet. Start the metronome to capture your last settings.</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const { tempo, beatsPerMeasure, beatUnit, volume, playedAt, presetTitle } = this.lastPlayed;
+        const metaParts = [
+            `${tempo} BPM`,
+            `${beatsPerMeasure}/${beatUnit}`,
+            `${volume}%`,
+        ];
+        if (presetTitle) {
+            metaParts.push(`Preset: ${presetTitle}`);
+        }
+        const meta = metaParts.join(' · ');
+        const timeAgo = this.formatRelativeTime(playedAt);
+
+        this.presetHistoryCard.classList.remove('preset-card--empty');
+        this.presetHistoryCard.innerHTML = `
+            <div class="preset-card__header">
+                <div class="preset-card__info">
+                    <div class="preset-card__title">${this.escapeHtml(title)}</div>
+                    <div class="preset-card__meta">
+                        <span>${this.escapeHtml(meta)}</span>
+                        <span>Played ${this.escapeHtml(timeAgo)}</span>
+                    </div>
+                </div>
+                <button type="button" class="preset-card__play" data-last-played-action="apply" title="Load last session" aria-label="Load last session">
+                    <i class="fa-solid fa-play" aria-hidden="true"></i>
+                </button>
+            </div>
+        `;
+    }
+
+    applyLastPlayedSnapshot() {
+        if (!this.lastPlayed) {
+            return;
+        }
+
+        const snapshot = this.lastPlayed;
+        this.isApplyingPreset = true;
+        this.updateTempo(snapshot.tempo);
+        this.updateVolume(snapshot.volume);
+        this.beatsPerMeasure = snapshot.beatsPerMeasure;
+        const beatsSelect = document.getElementById('beatsPerMeasure');
+        if (beatsSelect) {
+            beatsSelect.value = snapshot.beatsPerMeasure.toString();
+        }
+        this.beatUnit = snapshot.beatUnit;
+        const beatUnitSelect = document.getElementById('beatUnit');
+        if (beatUnitSelect) {
+            beatUnitSelect.value = snapshot.beatUnit.toString();
+        }
+        this.isApplyingPreset = false;
+
+        this.activePresetId = null;
+        this.lastAppliedPresetTitle = snapshot.presetTitle || null;
+        this.currentBeatNumber = 1;
+        this.saveSettings();
+        this.refreshPresetUI();
+        this.closePresetPanel();
+    }
+
+    renderPresetList() {
+        if (!this.presetListElement || !this.presetEmptyState) {
+            return;
+        }
+
+        if (!this.presets.length) {
+            this.presetListElement.innerHTML = '';
+            this.presetEmptyState.hidden = false;
+            return;
+        }
+
+        this.presetEmptyState.hidden = true;
+        const sections = this.buildPresetSections();
+        const listMarkup = sections
+            .map((section) => {
+                const itemsMarkup = section.items
+                    .map((preset) => this.renderPresetItem(preset))
+                    .join('');
+                if (!section.title) {
+                    return itemsMarkup;
+                }
+                return `
+                    <section class="preset-section">
+                        <header class="preset-section__title">${this.escapeHtml(section.title)}</header>
+                        ${itemsMarkup}
+                    </section>
+                `;
+            })
+            .join('');
+
+        this.presetListElement.innerHTML = listMarkup;
+    }
+
+    buildPresetSections() {
+        const now = Date.now();
+        if (this.presetViewMode === 'custom') {
+            const sorted = [...this.presets].sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt);
+            return [{ title: null, items: sorted }];
+        }
+
+        const sorted = [...this.presets].sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
+
+        if (!this.presetGroupByTime) {
+            return [{ title: null, items: sorted }];
+        }
+
+        const groups = {
+            today: [],
+            yesterday: [],
+            week: [],
+            earlier: [],
+        };
+
+        sorted.forEach((preset) => {
+            const basis = this.getPresetGroupingTimestamp(preset);
+            const dayDiff = this.getCalendarDayDifference(basis, now);
+            if (dayDiff <= 0) {
+                groups.today.push(preset);
+                return;
+            }
+            if (dayDiff === 1) {
+                groups.yesterday.push(preset);
+                return;
+            }
+            if (dayDiff <= 6) {
+                groups.week.push(preset);
+                return;
+            }
+            groups.earlier.push(preset);
+        });
+
+        const sections = [];
+        if (groups.today.length) {
+            sections.push({ title: 'Today', items: groups.today });
+        }
+        if (groups.yesterday.length) {
+            sections.push({ title: 'Yesterday', items: groups.yesterday });
+        }
+        if (groups.week.length) {
+            sections.push({ title: 'This week', items: groups.week });
+        }
+        if (groups.earlier.length) {
+            sections.push({ title: 'Earlier', items: groups.earlier });
+        }
+        return sections.length ? sections : [{ title: null, items: sorted }];
+    }
+
+    renderPresetItem(preset) {
+        const metaParts = [
+            `${preset.tempo} BPM`,
+            `${preset.beatsPerMeasure}/${preset.beatUnit}`,
+            `${preset.volume}% volume`,
+        ];
+        const createdText = this.formatRelativeTime(preset.createdAt);
+        const orderControls = this.presetViewMode === 'custom'
+            ? `
+                <div class="preset-item__order-controls">
+                    <button type="button" class="preset-item__order-button" data-preset-action="move-up" data-preset-id="${preset.id}" title="Move up" aria-label="Move preset up">
+                        <i class="fa-solid fa-chevron-up" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="preset-item__order-button" data-preset-action="move-down" data-preset-id="${preset.id}" title="Move down" aria-label="Move preset down">
+                        <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                    </button>
+                </div>
+            `
+            : '';
+
+        return `
+            <article class="preset-item" role="listitem">
+                <div class="preset-item__header">
+                    <div class="preset-item__title">${this.escapeHtml(preset.title)}</div>
+                    ${orderControls}
+                </div>
+                <div class="preset-item__meta">
+                    <span>${metaParts.map((part) => this.escapeHtml(part)).join(' · ')}</span>
+                    <span>Created ${this.escapeHtml(createdText)}</span>
+                </div>
+                <div class="preset-item__actions">
+                    <button type="button" class="preset-item__button preset-item__button--primary" data-preset-action="apply" data-preset-id="${preset.id}">Apply</button>
+                    <button type="button" class="preset-item__button preset-item__button--danger" data-preset-action="delete" data-preset-id="${preset.id}">Delete</button>
+                </div>
+            </article>
+        `;
+    }
+
+    buildPresetExportPayload() {
+        return {
+            type: 'tempo-sync.presets',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            presetCount: this.presets.length,
+            presets: this.presets.map(({ title, tempo, volume, beatsPerMeasure, beatUnit, createdAt, updatedAt, sortOrder }) => ({
+                title,
+                tempo,
+                volume,
+                beatsPerMeasure,
+                beatUnit,
+                createdAt,
+                updatedAt,
+                sortOrder,
+            })),
+        };
+    }
+
+    downloadJson(payload, filename) {
+        const json = JSON.stringify(payload, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+    }
+
+    identifyImportPayloadKind(payload) {
+        if (Array.isArray(payload)) {
+            return this.extractPresetArray(payload) ? 'presets' : 'unknown';
+        }
+
+        if (!payload || typeof payload !== 'object') {
+            return 'unknown';
+        }
+
+        const signature = typeof payload.type === 'string'
+            ? payload.type
+            : typeof payload.kind === 'string'
+                ? payload.kind
+                : null;
+
+        if (signature === 'tempo-sync.bundle') {
+            return 'bundle';
+        }
+
+        if (signature === 'tempo-sync.custom-theme') {
+            return 'customTheme';
+        }
+
+        if (signature === 'tempo-sync.presets') {
+            return 'presets';
+        }
+
+        const hasPresets = Boolean(this.extractPresetArray(payload));
+        const hasTheme = Boolean(this.extractThemePayload(payload));
+
+        if (hasPresets && hasTheme) {
+            return 'bundle';
+        }
+
+        if (hasTheme) {
+            return 'customTheme';
+        }
+
+        if (hasPresets) {
+            return 'presets';
+        }
+
+        return 'unknown';
+    }
+
+    getNestedValue(object, path) {
+        if (!object || typeof object !== 'object') {
+            return undefined;
+        }
+
+        return path.reduce((value, key) => {
+            if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, key)) {
+                return value[key];
+            }
+            return undefined;
+        }, object);
+    }
+
+    looksLikePreset(candidate) {
+        if (!candidate || typeof candidate !== 'object') {
+            return false;
+        }
+
+        const numericFields = ['tempo', 'beatsPerMeasure', 'beatUnit', 'volume'];
+        return numericFields.some((field) => Object.prototype.hasOwnProperty.call(candidate, field));
+    }
+
+    extractPresetArray(payload) {
+        const ensurePresetArray = (value) => {
+            if (!Array.isArray(value)) {
+                return null;
+            }
+            const filtered = value.filter((item) => this.looksLikePreset(item));
+            return filtered.length ? filtered : null;
+        };
+
+        if (Array.isArray(payload)) {
+            return ensurePresetArray(payload);
+        }
+
+        if (!payload || typeof payload !== 'object') {
+            return null;
+        }
+
+        const arrayCandidates = [
+            payload.presets,
+            this.getNestedValue(payload, ['data', 'presets']),
+            this.getNestedValue(payload, ['payload', 'presets']),
+            payload.collection,
+            this.getNestedValue(payload, ['data', 'collection']),
+            this.getNestedValue(payload, ['presets', 'items']),
+            this.getNestedValue(payload, ['data', 'presets', 'items']),
+        ];
+
+        for (const candidate of arrayCandidates) {
+            const result = ensurePresetArray(candidate);
+            if (result) {
+                return result;
+            }
+        }
+
+        const singularCandidates = [
+            payload.preset,
+            this.getNestedValue(payload, ['data', 'preset']),
+            this.getNestedValue(payload, ['payload', 'preset']),
+        ];
+
+        for (const candidate of singularCandidates) {
+            if (this.looksLikePreset(candidate)) {
+                return [candidate];
+            }
+        }
+
+        return null;
+    }
+
+    extractThemePayload(payload) {
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+            return null;
+        }
+
+        const isThemeShape = (candidate) => {
+            if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+                return false;
+            }
+
+            return (
+                typeof candidate.accent === 'string'
+                || typeof candidate.primaryHover === 'string'
+                || typeof candidate.background === 'string'
+                || typeof candidate.container === 'string'
+                || typeof candidate.text === 'string'
+                || typeof candidate.textSecondary === 'string'
+                || typeof candidate.border === 'string'
+                || typeof candidate.flash === 'string'
+                || (candidate.overrides && typeof candidate.overrides === 'object')
+            );
+        };
+
+        const directCandidates = [
+            payload.theme,
+            payload.customTheme,
+            this.getNestedValue(payload, ['data', 'theme']),
+            this.getNestedValue(payload, ['data', 'customTheme']),
+            this.getNestedValue(payload, ['payload', 'theme']),
+            this.getNestedValue(payload, ['payload', 'customTheme']),
+            this.getNestedValue(payload, ['theme', 'data']),
+        ];
+
+        for (const candidate of directCandidates) {
+            if (isThemeShape(candidate)) {
+                return candidate;
+            }
+        }
+
+        if (isThemeShape(payload)) {
+            return payload;
+        }
+
+        return null;
+    }
+
+    formatImportMismatchMessage(expectedKind, actualKind, fileName = null) {
+        const safeName = typeof fileName === 'string' && fileName.trim().length ? `“${fileName.trim()}”` : 'This file';
+
+        if (expectedKind === 'presets' && actualKind === 'customTheme') {
+            return `${safeName} looks like a Tempo Sync custom theme export. To import it, open Settings → Import & Export and choose Custom Theme.`;
+        }
+
+        if (expectedKind === 'customTheme' && actualKind === 'presets') {
+            return `${safeName} looks like a Tempo Sync preset export. To add these presets, open Settings → Import & Export and choose Presets.`;
+        }
+
+        const readableKind = expectedKind === 'presets' ? 'preset' : 'custom theme';
+        return `${safeName} does not look like a Tempo Sync ${readableKind} export.`;
+    }
+
+    async importPresetsFromData(data, { fileName = null } = {}) {
+        const payloadKind = this.identifyImportPayloadKind(data);
+        if (payloadKind !== 'presets' && payloadKind !== 'bundle') {
+            const message = this.formatImportMismatchMessage('presets', payloadKind, fileName);
+            await this.showAlert('Import Presets Failed', message, [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        const presetsPayload = this.extractPresetArray(data);
+        
+        if (!presetsPayload || !presetsPayload.length) {
+            await this.showAlert('Import Presets Failed', 'No presets were found in the selected file.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        const normalized = presetsPayload
+            .map((preset, index) => this.normalizePreset(preset, index))
+            .filter(Boolean);
+
+        if (!normalized.length) {
+            await this.showAlert('Import Presets Failed', 'We could not parse any presets from this file.', [
+                { text: 'OK', style: 'primary', primary: true },
+            ]);
+            return;
+        }
+
+        let mode = 'replace';
+        if (this.presets.length) {
+            const choice = await this.showAlert(
+                'Import Presets',
+                `Found ${normalized.length} ${normalized.length === 1 ? 'preset' : 'presets'}. Merge with or replace your current list?`,
+                [
+                    { text: 'Cancel', style: 'default' },
+                    { text: 'Replace', style: 'danger' },
+                    { text: 'Merge', style: 'primary', primary: true },
+                ],
+            );
+
+            if (choice === 'Cancel') {
+                return;
+            }
+
+            mode = choice === 'Replace' ? 'replace' : 'merge';
+        }
+
+        const prepared = this.prepareImportedPresets(normalized, { resetOrder: mode === 'replace' });
+
+        if (mode === 'replace') {
+            this.presets = prepared;
+        } else {
+            const existingTitles = new Set(this.presets.map((preset) => preset.title.trim().toLowerCase()));
+            const merged = [...this.presets];
+
+            prepared.forEach((preset) => {
+                const uniqueTitle = this.generateUniquePresetTitle(preset.title, existingTitles);
+                preset.title = uniqueTitle;
+                existingTitles.add(uniqueTitle.trim().toLowerCase());
+                merged.push(preset);
+            });
+
+            this.presets = merged;
+        }
+
+        this.saveSettings();
+        this.refreshPresetUI();
+
+        await this.showAlert('Import Complete', `${prepared.length} ${prepared.length === 1 ? 'preset has' : 'presets have'} been imported.`, [
+            { text: 'Nice', style: 'primary', primary: true },
+        ]);
+    }
+
+    prepareImportedPresets(presets, { resetOrder = false } = {}) {
+        const now = Date.now();
+        const baseOrder = resetOrder ? 1 : this.getNextPresetSortOrder();
+
+        return presets.map((preset, index) => {
+            const createdAt = Number.isFinite(Number(preset.createdAt)) ? Number(preset.createdAt) : now + index;
+            const updatedAt = Number.isFinite(Number(preset.updatedAt)) ? Number(preset.updatedAt) : createdAt;
+
+            return {
+                ...preset,
+                id: this.generatePresetId(),
+                createdAt,
+                updatedAt,
+                sortOrder: (resetOrder ? 1 : baseOrder) + index,
+            };
+        });
+    }
+
+    generateUniquePresetTitle(baseTitle, existingTitles = new Set()) {
+        const trimmed = typeof baseTitle === 'string' && baseTitle.trim() ? baseTitle.trim() : 'Preset';
+        let candidate = trimmed;
+        let suffix = 2;
+
+        while (existingTitles.has(candidate.toLowerCase())) {
+            candidate = `${trimmed} (${suffix})`;
+            suffix += 1;
+        }
+
+        return candidate;
+    }
+
+    createPreset({ title, tempo, volume, beatsPerMeasure, beatUnit }) {
+        const clampedTempo = Math.min(Math.max(Math.round(tempo), 20), 300);
+        const clampedVolume = Math.min(Math.max(Math.round(volume), 0), 100);
+        const clampedBeats = Math.min(Math.max(Math.round(beatsPerMeasure), 1), 16);
+        const allowedUnits = [1, 2, 4, 8];
+        const normalizedBeatUnit = allowedUnits.includes(beatUnit) ? beatUnit : 4;
+        const timestamp = Date.now();
+        return {
+            id: this.generatePresetId(),
+            title: title.trim(),
+            tempo: clampedTempo,
+            volume: clampedVolume,
+            beatsPerMeasure: clampedBeats,
+            beatUnit: normalizedBeatUnit,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            sortOrder: this.getNextPresetSortOrder(),
+        };
+    }
+
+    normalizePreset(preset, index = 0) {
+        if (!preset || typeof preset !== 'object') {
+            return null;
+        }
+
+        const allowedUnits = [1, 2, 4, 8];
+        const safeId = typeof preset.id === 'string' && preset.id ? preset.id : `preset-${index}-${Date.now()}`;
+        const safeTitle = typeof preset.title === 'string' && preset.title.trim() ? preset.title.trim() : `Preset ${index + 1}`;
+        const tempo = Math.min(Math.max(Math.round(Number(preset.tempo) || 120), 20), 300);
+        const volume = Math.min(Math.max(Math.round(Number(preset.volume) || 80), 0), 100);
+        const beatsPerMeasure = Math.min(Math.max(Math.round(Number(preset.beatsPerMeasure) || 4), 1), 16);
+        const beatUnit = allowedUnits.includes(Number(preset.beatUnit)) ? Number(preset.beatUnit) : 4;
+        const createdAt = Number.isFinite(Number(preset.createdAt)) ? Number(preset.createdAt) : Date.now();
+        const updatedAt = Number.isFinite(Number(preset.updatedAt)) ? Number(preset.updatedAt) : createdAt;
+        const sortOrder = Number.isFinite(Number(preset.sortOrder)) ? Number(preset.sortOrder) : index + 1;
+
+        return {
+            id: safeId,
+            title: safeTitle,
+            tempo,
+            volume,
+            beatsPerMeasure,
+            beatUnit,
+            createdAt,
+            updatedAt,
+            sortOrder,
+        };
+    }
+
+    normalizeLastPlayed(snapshot) {
+        const tempo = Math.min(Math.max(Math.round(Number(snapshot.tempo) || this.tempo), 20), 300);
+        const volume = Math.min(Math.max(Math.round(Number(snapshot.volume) || Math.round(this.volume * 100)), 0), 100);
+        const beatsPerMeasure = Math.min(Math.max(Math.round(Number(snapshot.beatsPerMeasure) || this.beatsPerMeasure), 1), 16);
+        const beatUnit = [1, 2, 4, 8].includes(Number(snapshot.beatUnit)) ? Number(snapshot.beatUnit) : this.beatUnit;
+        const playedAt = Number.isFinite(Number(snapshot.playedAt)) ? Number(snapshot.playedAt) : Date.now();
+        const presetTitle = typeof snapshot.presetTitle === 'string' && snapshot.presetTitle.trim() ? snapshot.presetTitle.trim() : null;
+        return { tempo, volume, beatsPerMeasure, beatUnit, playedAt, presetTitle };
+    }
+
+    getNextPresetSortOrder() {
+        if (!this.presets.length) {
+            return 1;
+        }
+        return Math.max(...this.presets.map((preset) => Number(preset.sortOrder) || 0)) + 1;
+    }
+
+    movePreset(presetId, direction) {
+        if (this.presetViewMode !== 'custom') {
+            return;
+        }
+
+        const index = this.presets.findIndex((preset) => preset.id === presetId);
+        if (index === -1) {
+            return;
+        }
+
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= this.presets.length) {
+            return;
+        }
+
+        const currentOrder = this.presets[index].sortOrder;
+        this.presets[index].sortOrder = this.presets[targetIndex].sortOrder;
+        this.presets[targetIndex].sortOrder = currentOrder;
+        this.presets[index].updatedAt = Date.now();
+        this.presets[targetIndex].updatedAt = Date.now();
+        this.saveSettings();
+        this.renderPresetList();
+    }
+
+    async deletePresetById(presetId) {
+        const preset = this.presets.find((item) => item.id === presetId);
+        if (!preset) {
+            return;
+        }
+
+        const confirmed = await this.showAlert(
+            'Delete Preset',
+            `Delete "${preset.title}"? This action cannot be undone.`,
+            [
+                { text: 'Cancel', style: 'default' },
+                { text: 'Delete', style: 'danger', primary: true }
+            ]
+        );
+
+        if (confirmed !== 'Delete') {
+            return;
+        }
+
+        this.presets = this.presets.filter((item) => item.id !== presetId);
+        if (this.activePresetId === presetId) {
+            this.clearActivePresetReference();
+        }
+        this.saveSettings();
+        this.refreshPresetUI();
+    }
+
+    applyPreset(presetId) {
+        const preset = this.presets.find((item) => item.id === presetId);
+        if (!preset) {
+            return;
+        }
+
+        this.isApplyingPreset = true;
+        this.updateTempo(preset.tempo);
+        this.updateVolume(preset.volume);
+        this.beatsPerMeasure = preset.beatsPerMeasure;
+        const beatsSelect = document.getElementById('beatsPerMeasure');
+        if (beatsSelect) {
+            beatsSelect.value = preset.beatsPerMeasure.toString();
+        }
+        this.beatUnit = preset.beatUnit;
+        const beatUnitSelect = document.getElementById('beatUnit');
+        if (beatUnitSelect) {
+            beatUnitSelect.value = preset.beatUnit.toString();
+        }
+        this.isApplyingPreset = false;
+
+        this.activePresetId = preset.id;
+        this.lastAppliedPresetTitle = preset.title;
+        this.currentBeatNumber = 1;
+        preset.updatedAt = Date.now();
+        this.saveSettings();
+        this.refreshPresetUI();
+        this.closePresetPanel();
+    }
+
+    generatePresetId() {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return crypto.randomUUID();
+        }
+        return `preset-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    }
+
+    escapeHtml(value) {
+        const stringValue = String(value ?? '');
+        return stringValue
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    getPresetGroupingTimestamp(preset) {
+        if (!preset || typeof preset !== 'object') {
+            return Date.now();
+        }
+
+        const createdAt = Number.isFinite(Number(preset.createdAt)) ? Number(preset.createdAt) : null;
+        const updatedAt = Number.isFinite(Number(preset.updatedAt)) ? Number(preset.updatedAt) : null;
+
+        if (createdAt === null && updatedAt === null) {
+            return Date.now();
+        }
+
+        if (createdAt === null) {
+            return updatedAt;
+        }
+
+        if (updatedAt === null) {
+            return createdAt;
+        }
+
+        return Math.max(createdAt, updatedAt);
+    }
+
+    getCalendarDayDifference(earlierTimestamp, laterTimestamp = Date.now()) {
+        const earlierMs = Number(earlierTimestamp);
+        const laterMs = Number(laterTimestamp);
+
+        if (!Number.isFinite(earlierMs) || !Number.isFinite(laterMs)) {
+            return 0;
+        }
+
+        const earlierDate = new Date(earlierMs);
+        const laterDate = new Date(laterMs);
+        const earlierUTC = Date.UTC(earlierDate.getFullYear(), earlierDate.getMonth(), earlierDate.getDate());
+        const laterUTC = Date.UTC(laterDate.getFullYear(), laterDate.getMonth(), laterDate.getDate());
+        const millisecondsPerDay = 24 * 60 * 60 * 1000;
+
+        return Math.round((laterUTC - earlierUTC) / millisecondsPerDay);
+    }
+
+    formatRelativeTime(timestamp) {
+        const now = Date.now();
+        const diffMs = now - timestamp;
+
+        if (!Number.isFinite(diffMs) || diffMs < 0) {
+            return 'just now';
+        }
+
+        const minutes = Math.floor(diffMs / (60 * 1000));
+        if (minutes < 1) {
+            return 'just now';
+        }
+        if (minutes === 1) {
+            return '1 minute ago';
+        }
+        if (minutes < 60) {
+            return `${minutes} minutes ago`;
+        }
+
+        const hours = Math.floor(minutes / 60);
+        const dayDiff = this.getCalendarDayDifference(timestamp, now);
+
+        if (dayDiff === 0) {
+            if (hours === 1) {
+                return '1 hour ago';
+            }
+            return `${hours} hours ago`;
+        }
+
+        if (dayDiff === 1) {
+            return 'yesterday';
+        }
+        if (dayDiff < 7) {
+            return `${dayDiff} days ago`;
+        }
+
+        const date = new Date(timestamp);
+        return date.toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+        });
+    }
+
+    formatDateForFilename(date = new Date()) {
+        const pad = (value) => String(value).padStart(2, '0');
+        const year = date.getFullYear();
+        const month = pad(date.getMonth() + 1);
+        const day = pad(date.getDate());
+        const hours = pad(date.getHours());
+        const minutes = pad(date.getMinutes());
+        return `${year}${month}${day}-${hours}${minutes}`;
+    }
+
+    snapshotCurrentSettings() {
+        return {
+            tempo: this.tempo,
+            volume: Math.round(this.volume * 100),
+            beatsPerMeasure: this.beatsPerMeasure,
+            beatUnit: this.beatUnit,
+        };
+    }
+
+    recordLastPlayed(sourceTitle = null) {
+        this.lastPlayed = {
+            ...this.snapshotCurrentSettings(),
+            playedAt: Date.now(),
+            presetTitle: sourceTitle || this.lastAppliedPresetTitle || null,
+        };
+        this.saveSettings();
+        this.renderLastPlayed();
+    }
+
+    clearActivePresetReference() {
+        if (this.isApplyingPreset || this.isRestoringSettings) {
+            return;
+        }
+        this.activePresetId = null;
+        this.lastAppliedPresetTitle = null;
+    }
+
+    showAlert(title, message, buttons = [{ text: 'OK', style: 'primary', primary: true }], options = {}) {
+        return new Promise((resolve) => {
+            if (!this.customAlert || !this.customAlertTitle || !this.customAlertMessage || !this.customAlertActions) {
+                const fallback = typeof options.onResult === 'function'
+                    ? options.onResult({ action: buttons.find((btn) => btn.primary)?.text || buttons[0]?.text || 'OK' })
+                    : buttons.find((btn) => btn.primary)?.text || buttons[0]?.text || 'OK';
+                resolve(fallback);
+                return;
+            }
+
+            const resolveWithAction = (actionText) => {
+                if (typeof options.onResult === 'function') {
+                    return options.onResult({ action: actionText });
+                }
+                return actionText;
+            };
+
+            this.customAlertResolve = resolve;
+            this.customAlertTitle.textContent = title;
+            this.customAlertMessage.textContent = message;
+            this.customAlertActions.innerHTML = '';
+
+            if (this.customAlertExtra) {
+                this.customAlertExtra.innerHTML = '';
+                if (options.extraContent instanceof HTMLElement) {
+                    this.customAlertExtra.appendChild(options.extraContent);
+                    this.customAlertExtra.hidden = false;
+                } else {
+                    this.customAlertExtra.hidden = true;
+                }
+            }
+
+            buttons.forEach((button) => {
+                const btn = document.createElement('button');
+                btn.className = 'custom-alert__button';
+                btn.textContent = button.text;
+
+                if (button.style === 'primary') {
+                    btn.classList.add('custom-alert__button--primary');
+                } else if (button.style === 'danger') {
+                    btn.classList.add('custom-alert__button--danger');
+                }
+
+                btn.addEventListener('click', () => {
+                    this.closeAlert(resolveWithAction(button.text));
+                });
+
+                this.customAlertActions.appendChild(btn);
+            });
+
+            if (this.customAlertBackdrop) {
+                this.customAlertBackdropHandler = () => {
+                    this.closeAlert(resolveWithAction(buttons.find((btn) => !btn.primary)?.text || buttons[0]?.text || 'Cancel'));
+                };
+                this.customAlertBackdrop.addEventListener('click', this.customAlertBackdropHandler, { once: true });
+            }
+
+            this.customAlert.classList.add('is-open');
+        });
+    }
+
+    closeAlert(result) {
+        if (!this.customAlert) {
+            return;
+        }
+
+        this.customAlert.classList.remove('is-open');
+        if (this.customAlertExtra) {
+            this.customAlertExtra.innerHTML = '';
+            this.customAlertExtra.hidden = true;
+        }
+        if (this.customAlertBackdrop && this.customAlertBackdropHandler) {
+            this.customAlertBackdrop.removeEventListener('click', this.customAlertBackdropHandler);
+            this.customAlertBackdropHandler = null;
+        }
+
+        if (this.customAlertResolve) {
+            this.customAlertResolve(result);
+            this.customAlertResolve = null;
+        }
+    }
+
+    applyTheme(theme) {
+        const requestedTheme = theme;
+
+        const knownThemes = [
+            'system',
+            'custom',
+            'light',
+            'ocean',
+            'pink',
+            'gold',
+            'sunrise',
+            'aurora',
+            'lilac',
+            'meadow',
+            'dark',
+            'midnight',
+            'violet',
+            'forest',
+            'oled',
+            'ember',
+            'nebula',
+            'nocturne',
+        ];
+        const normalized = knownThemes.includes(requestedTheme) ? requestedTheme : 'system';
+        this.currentTheme = normalized;
+
+        if (this.themeSelect && this.themeSelect.value !== normalized) {
+            this.themeSelect.value = normalized;
+        }
+
+        if (normalized === 'system') {
+            this.bindSystemThemeListener();
+            const prefersDark = this.systemThemeMediaQuery?.matches ?? false;
+            this.applySystemTheme(prefersDark);
+            this.clearCustomThemeProperties();
+        } else if (normalized === 'custom') {
+            this.unbindSystemThemeListener();
+            document.documentElement.setAttribute('data-theme', 'custom');
+            this.applyCustomThemeProperties();
+        } else {
+            this.unbindSystemThemeListener();
+            document.documentElement.setAttribute('data-theme', normalized);
+            this.clearCustomThemeProperties();
+        }
+
+        this.renderThemeList();
+        this.updateCustomThemeSectionState();
+
+        if (normalized === 'custom') {
+            queueMicrotask(() => this.focusCustomThemeInput());
+        }
+    }
+
+    applySystemTheme(prefersDark) {
+        const theme = prefersDark ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+    }
+
+    bindSystemThemeListener() {
+        if (!this.systemThemeMediaQuery || this.systemThemeListenerAttached) {
+            return;
+        }
+
+        let attached = false;
+        if (typeof this.systemThemeMediaQuery.addEventListener === 'function') {
+            this.systemThemeMediaQuery.addEventListener('change', this.boundSystemThemeHandler);
+            attached = true;
+        } else if (typeof this.systemThemeMediaQuery.addListener === 'function') {
+            this.systemThemeMediaQuery.addListener(this.boundSystemThemeHandler);
+            attached = true;
+        }
+        this.systemThemeListenerAttached = attached;
+    }
+
+    unbindSystemThemeListener() {
+        if (!this.systemThemeMediaQuery || !this.systemThemeListenerAttached) {
+            return;
+        }
+
+        if (typeof this.systemThemeMediaQuery.removeEventListener === 'function') {
+            this.systemThemeMediaQuery.removeEventListener('change', this.boundSystemThemeHandler);
+        } else if (typeof this.systemThemeMediaQuery.removeListener === 'function') {
+            this.systemThemeMediaQuery.removeListener(this.boundSystemThemeHandler);
+        }
+        this.systemThemeListenerAttached = false;
+    }
+
+
+    setPlayButtonState(isPlaying) {
+        if (!this.playButton) {
+            return;
+        }
+
+        const iconEl = this.playButton.querySelector('i');
+        const textEl = this.playButton.querySelector('span');
+
+        if (iconEl) {
+            iconEl.classList.remove('fa-play', 'fa-stop');
+            iconEl.classList.add(isPlaying ? 'fa-stop' : 'fa-play');
+        }
+
+        if (textEl) {
+            textEl.textContent = isPlaying ? 'Stop' : 'Play';
+        }
+
+        this.playButton.setAttribute('aria-label', isPlaying ? 'Stop the metronome' : 'Start the metronome');
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            const target = e.target;
+            const tagName = typeof target?.tagName === 'string' ? target.tagName.toLowerCase() : '';
+            const isEditableField = tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target?.isContentEditable === true;
+            const hasModifier = e.altKey || e.ctrlKey || e.metaKey;
+            if (isEditableField || hasModifier) {
+                return;
+            }
+
+            if (e.code === 'Space') {
+                e.preventDefault();
+                this.togglePlay();
+            } else if (e.code === 'ArrowUp' || e.code === 'KeyI') {
+                this.updateTempo(this.tempo + 1);
+            } else if (e.code === 'ArrowDown' || e.code === 'KeyD') {
+                this.updateTempo(this.tempo - 1);
+            } else if (e.code === 'ArrowRight') {
+                e.preventDefault();
+                this.updateVolume(this.volume * 100 + 2);
+            } else if (e.code === 'ArrowLeft') {
+                e.preventDefault();
+                this.updateVolume(this.volume * 100 - 2);
+            } else if (e.code === 'KeyT') {
+                this.tapTempo();
+            }
+        });
+    }
+
+    setupVisibilityHandling() {
+        document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
+    }
+
+    loadSettings() {
+        if (typeof window === 'undefined' || !window.localStorage) {
+            return;
+        }
+
+        this.isRestoringSettings = true;
+        try {
+            const saved = window.localStorage.getItem(this.storageKey);
+            if (!saved) {
+                return;
+            }
+
+            const settings = JSON.parse(saved);
+            if (!settings || typeof settings !== 'object') {
+                return;
+            }
+
+            if (settings.customTheme && typeof settings.customTheme === 'object') {
+                this.customTheme = this.normalizeCustomTheme(settings.customTheme);
+            } else {
+                this.customTheme = { accent: this.defaultCustomAccent };
+            }
+
+            if (typeof settings.theme === 'string') {
+                this.applyTheme(settings.theme);
+            }
+
+            if (typeof settings.tempo === 'number') {
+                this.updateTempo(settings.tempo);
+            }
+
+            if (typeof settings.volume === 'number') {
+                this.updateVolume(settings.volume);
+            }
+
+            if (typeof settings.beatsPerMeasure === 'number') {
+                const beatsValue = Math.min(Math.max(Math.round(settings.beatsPerMeasure), 1), 16);
+                this.beatsPerMeasure = beatsValue;
+                const beatsSelect = document.getElementById('beatsPerMeasure');
+                if (beatsSelect) {
+                    beatsSelect.value = beatsValue.toString();
+                }
+            }
+
+            if (typeof settings.beatUnit === 'number') {
+                const allowedUnits = [1, 2, 4, 8];
+                const unitValue = allowedUnits.includes(settings.beatUnit) ? settings.beatUnit : this.beatUnit;
+                this.beatUnit = unitValue;
+                const unitSelect = document.getElementById('beatUnit');
+                if (unitSelect) {
+                    unitSelect.value = unitValue.toString();
+                }
+            }
+
+            if (Array.isArray(settings.presets)) {
+                this.presets = settings.presets
+                    .map((preset, index) => this.normalizePreset(preset, index))
+                    .filter(Boolean);
+            }
+
+            if (typeof settings.presetViewMode === 'string') {
+                if (settings.presetViewMode === 'group') {
+                    this.presetViewMode = 'time';
+                    this.presetGroupByTime = true;
+                } else {
+                    const allowedModes = ['time', 'custom'];
+                    if (allowedModes.includes(settings.presetViewMode)) {
+                        this.presetViewMode = settings.presetViewMode;
+                    }
+                }
+            }
+
+            if (typeof settings.presetGroupByTime === 'boolean') {
+                this.presetGroupByTime = settings.presetGroupByTime;
+            } else {
+                this.presetGroupByTime = true;
+            }
+
+            if (settings.beatFlashMode === 'every' || settings.beatFlashMode === 'downbeat') {
+                this.beatFlashMode = settings.beatFlashMode;
+            }
+
+            if (settings.lastPlayed && typeof settings.lastPlayed === 'object') {
+                this.lastPlayed = this.normalizeLastPlayed(settings.lastPlayed);
+            }
+        } catch (error) {
+            console.warn('Unable to load Tempo Sync settings:', error);
+        } finally {
+            this.isRestoringSettings = false;
+            if (this.themeSelect && this.themeSelect.value !== this.currentTheme) {
+                this.themeSelect.value = this.currentTheme;
+            }
+            this.syncCustomThemeInputs(this.customTheme);
+            this.updateCustomThemeSectionState();
+            this.syncBeatFlashInputs();
+            this.refreshPresetUI();
+        }
+    }
+
+    saveSettings() {
+        if (this.isRestoringSettings || typeof window === 'undefined' || !window.localStorage) {
+            return;
+        }
+
+        try {
+            const settings = {
+                tempo: this.tempo,
+                volume: Math.round(this.volume * 100),
+                beatsPerMeasure: this.beatsPerMeasure,
+                beatUnit: this.beatUnit,
+                theme: this.currentTheme || 'system',
+                customTheme: this.customTheme,
+                presets: this.presets,
+                presetViewMode: this.presetViewMode,
+                presetGroupByTime: this.presetGroupByTime,
+                lastPlayed: this.lastPlayed,
+                beatFlashMode: this.beatFlashMode,
+            };
+            window.localStorage.setItem(this.storageKey, JSON.stringify(settings));
+        } catch (error) {
+            console.warn('Unable to save Tempo Sync settings:', error);
+        }
+    }
+
+    handleVisibilityChange() {
+        this.updateSchedulingForVisibility(true);
+
+        if (
+            document.visibilityState === 'visible' &&
+            this.audioContext &&
+            (this.audioContext.state === 'suspended' || this.audioContext.state === 'interrupted')
+        ) {
+            this.audioContext.resume();
+        }
+    }
+
+    updateSchedulingForVisibility(triggerScheduler = false) {
+        const isHidden = document.visibilityState === 'hidden';
+        this.scheduleAheadTime = isHidden ? this.backgroundScheduleAheadTime : this.defaultScheduleAheadTime;
+        const targetLookahead = isHidden ? this.backgroundLookahead : this.defaultLookahead;
+        this.setSchedulerInterval(targetLookahead);
+
+        if (triggerScheduler && this.isPlaying) {
+            this.scheduler();
+        }
+    }
+
+    setSchedulerInterval(intervalMs) {
+        if (this.schedulerId) {
+            clearInterval(this.schedulerId);
+            this.schedulerId = null;
+        }
+
+        this.lookahead = intervalMs;
+
+        if (this.isPlaying) {
+            this.schedulerId = setInterval(() => this.scheduler(), this.lookahead);
+        }
+    }
+
+    updateTempo(newTempo) {
+        const parsedTempo = Math.round(Number(newTempo));
+        if (Number.isNaN(parsedTempo)) {
+            document.getElementById('bpmInput').value = this.tempo;
+            document.getElementById('tempoSlider').value = this.tempo;
+            return;
+        }
+
+        this.tempo = Math.min(Math.max(parsedTempo, 20), 300);
+        document.getElementById('bpmInput').value = this.tempo;
+        document.getElementById('tempoSlider').value = this.tempo;
+
+        this.clearActivePresetReference();
+
+        if (this.isPlaying && this.audioContext) {
+            this.nextNoteTime = Math.max(this.nextNoteTime, this.audioContext.currentTime + 0.01);
+        }
+
+        if (!this.isRestoringSettings) {
+            this.saveSettings();
+        }
+    }
+
+    async togglePlay() {
+        if (!this.audioContext) {
+            this.audioContext = new AudioContext();
+            this.masterGain = this.audioContext.createGain();
+            this.masterGain.gain.value = this.volume;
+            this.masterGain.connect(this.audioContext.destination);
+            this.audioContext.onstatechange = () => {
+                if (!this.audioContext) return;
+                if (
+                    (this.audioContext.state === 'suspended' || this.audioContext.state === 'interrupted') &&
+                    this.isPlaying &&
+                    document.visibilityState === 'visible'
+                ) {
+                    this.audioContext.resume();
+                }
+            };
+        }
+
+        if (this.audioContext.state === 'suspended' || this.audioContext.state === 'interrupted') {
+            await this.audioContext.resume();
+        }
+
+        if (this.isPlaying) {
+            this.stop();
+            this.setPlayButtonState(false);
+        } else {
+            this.start();
+            this.setPlayButtonState(true);
+        }
+    }
+
+    start() {
+        this.isPlaying = true;
+        this.currentBeatNumber = 1;
+        this.clearVisualTimeouts();
+        this.restoreMasterGain();
+        this.nextNoteTime = this.audioContext.currentTime + 0.05;
+        this.updateSchedulingForVisibility();
+        this.scheduler();
+        this.setPlayButtonState(true);
+        this.recordLastPlayed();
+    }
+
+    stop() {
+        this.isPlaying = false;
+        this.currentBeatNumber = 1;
+
+        if (this.schedulerId) {
+            clearInterval(this.schedulerId);
+            this.schedulerId = null;
+        }
+
+        this.scheduleAheadTime = this.defaultScheduleAheadTime;
+        this.lookahead = this.defaultLookahead;
+
+        this.flushPendingAudio();
+        this.muteMasterGain();
+        this.clearVisualTimeouts();
+        clearTimeout(this.flashTimeout);
+        this.flashTimeout = null;
+
+        const beatDisplay = this.beatDisplayElement || document.getElementById('beatDisplay');
+        if (beatDisplay) {
+            beatDisplay.classList.remove('flash');
+        }
+        if (beatDisplay) {
+            beatDisplay.textContent = '1';
+        }
+        this.setPlayButtonState(false);
+    }
+
+    scheduler() {
+        if (!this.isPlaying) return;
+
+        while (this.nextNoteTime < this.audioContext.currentTime + this.scheduleAheadTime) {
+            const beatNumber = this.currentBeatNumber;
+            const scheduledTime = this.nextNoteTime;
+            this.scheduleClick(beatNumber, scheduledTime);
+            this.advanceNote();
+        }
+    }
+
+    scheduleClick(beatNumber, time) {
+        this.playClick(beatNumber, time);
+        const updateDelay = Math.max((time - this.audioContext.currentTime) * 1000, 0);
+        const timeoutId = setTimeout(() => this.updateBeatDisplay(beatNumber), updateDelay);
+        this.visualTimeouts.push(timeoutId);
+    }
+
+    advanceNote() {
+        this.nextNoteTime += 60.0 / this.tempo;
+        this.currentBeatNumber = (this.currentBeatNumber % this.beatsPerMeasure) + 1;
+    }
+
+    playClick(beatNumber, time) {
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+
+        oscillator.type = 'triangle';
+        const frequency = beatNumber === 1 ? 880 : 440;
+        oscillator.frequency.setValueAtTime(frequency, time);
+
+        oscillator.connect(gainNode);
+        gainNode.connect(this.masterGain || this.audioContext.destination);
+
+        const pendingEvent = {
+            oscillator,
+            gainNode,
+            startTime: time,
+            cleanup: null,
+        };
+        this.pendingAudioEvents.add(pendingEvent);
+
+        const removePending = () => {
+            if (this.pendingAudioEvents.has(pendingEvent)) {
+                this.pendingAudioEvents.delete(pendingEvent);
+            }
+            try {
+                oscillator.disconnect();
+            } catch (error) {
+                // ignore
+            }
+            try {
+                gainNode.disconnect();
+            } catch (error) {
+                // ignore
+            }
+        };
+
+        pendingEvent.cleanup = removePending;
+
+        if (typeof oscillator.addEventListener === 'function') {
+            oscillator.addEventListener('ended', removePending, { once: true });
+        } else {
+            oscillator.onended = removePending;
+        }
+
+        gainNode.gain.cancelScheduledValues(time);
+        gainNode.gain.setValueAtTime(0, time);
+        const peakLevel = beatNumber === 1 ? 1.2 : 0.85;
+        gainNode.gain.linearRampToValueAtTime(peakLevel, time + 0.003);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.09);
+        gainNode.gain.setValueAtTime(0, time + 0.12);
+
+        oscillator.start(time);
+        oscillator.stop(time + 0.12);
+    }
+
+    updateBeatDisplay(beatNumber) {
+        const beatDisplay = this.beatDisplayElement || document.getElementById('beatDisplay');
+
+        if (!beatDisplay) {
+            return;
+        }
+
+        beatDisplay.textContent = beatNumber;
+
+        const shouldFlash = this.shouldFlashBeat(beatNumber);
+
+        if (shouldFlash) {
+            beatDisplay.classList.add('flash');
+            clearTimeout(this.flashTimeout);
+            this.flashTimeout = setTimeout(() => {
+                beatDisplay.classList.remove('flash');
+            }, 100);
+        } else {
+            beatDisplay.classList.remove('flash');
+        }
+    }
+
+    shouldFlashBeat(beatNumber) {
+        if (this.beatFlashMode === 'every') {
+            return true;
+        }
+        return beatNumber === 1;
+    }
+
+    clearVisualTimeouts() {
+        this.visualTimeouts.forEach((timeout) => clearTimeout(timeout));
+        this.visualTimeouts = [];
+    }
+
+    flushPendingAudio() {
+        if (!this.audioContext) {
+            this.pendingAudioEvents.clear();
+            return;
+        }
+
+        const now = this.audioContext.currentTime;
+        const events = Array.from(this.pendingAudioEvents);
+
+        events.forEach((event) => {
+            const { gainNode, cleanup } = event;
+
+            try {
+                gainNode.gain.cancelScheduledValues(now);
+                gainNode.gain.setValueAtTime(0, now);
+            } catch (error) {
+                // ignore
+            }
+
+            if (typeof cleanup === 'function') {
+                cleanup();
+            }
+        });
+
+        this.pendingAudioEvents.clear();
+    }
+
+    muteMasterGain() {
+        if (!this.masterGain || !this.audioContext) {
+            return;
+        }
+
+        const now = this.audioContext.currentTime;
+        try {
+            this.masterGain.gain.cancelScheduledValues(now);
+            this.masterGain.gain.setTargetAtTime(0, now, 0.01);
+            this.mutedWhileStopped = true;
+        } catch (error) {
+            // ignore
+        }
+    }
+
+    restoreMasterGain() {
+        if (!this.masterGain || !this.audioContext) {
+            return;
+        }
+
+        const now = this.audioContext.currentTime;
+        try {
+            this.masterGain.gain.cancelScheduledValues(now);
+            this.masterGain.gain.setValueAtTime(0, now);
+            this.masterGain.gain.setTargetAtTime(this.volume, now + 0.005, 0.02);
+            this.mutedWhileStopped = false;
+        } catch (error) {
+            // ignore
+        }
+    }
+
+    tapTempo() {
+        const now = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
+        const beatDisplay = this.beatDisplayElement || document.getElementById('beatDisplay');
+
+        if (beatDisplay) {
+            beatDisplay.classList.add('flash');
+            setTimeout(() => beatDisplay.classList.remove('flash'), 100);
+        }
+
+        if (this.tapTimes.length && now - this.tapTimes[this.tapTimes.length - 1] > 2500) {
+            this.tapTimes = [];
+        }
+
+        this.tapTimes.push(now);
+
+        if (this.tapTimes.length > 10) {
+            this.tapTimes.shift();
+        }
+
+        if (this.tapTimes.length > 1) {
+            const intervals = this.tapTimes.slice(1).map((t, i) => t - this.tapTimes[i]);
+            const bpm = this.calculateTapBpm(intervals);
+
+            if (bpm !== null) {
+                const clamped = Math.min(Math.max(Math.round(bpm), 20), 300);
+                this.updateTempo(clamped);
+            }
+        }
+
+        clearTimeout(this.tapTimeoutId);
+        this.tapTimeoutId = setTimeout(() => {
+            this.tapTimes = [];
+        }, 5000);
+    }
+
+    calculateTapBpm(intervals) {
+        if (!intervals.length) {
+            return null;
+        }
+
+        const sorted = [...intervals].sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)];
+        const tolerance = median * 0.25;
+        const filtered = intervals.filter((interval) => Math.abs(interval - median) <= tolerance);
+        const workingSet = filtered.length >= 2 ? filtered : intervals;
+        const avgInterval = workingSet.reduce((sum, interval) => sum + interval, 0) / workingSet.length;
+
+        if (avgInterval <= 0) {
+            return null;
+        }
+
+        const bpm = 60000 / avgInterval;
+        return Number.isFinite(bpm) ? bpm : null;
+    }
+
+    attachTempoButton(button, step) {
+        if (!button) {
+            return;
+        }
+
+        button.addEventListener('click', (event) => {
+            if (this.suppressTempoClick) {
+                event.preventDefault();
+                this.suppressTempoClick = false;
+                return;
+            }
+            this.updateTempo(this.tempo + step);
+        });
+
+        button.addEventListener('pointerdown', (event) => {
+            if (event.pointerType === 'mouse' && event.button !== 0) {
+                return;
+            }
+
+            if (event.pointerType === 'touch') {
+                event.preventDefault();
+            }
+            this.clearTempoHold();
+            this.suppressTempoClick = false;
+            this.isTempoHolding = false;
+            button.setPointerCapture?.(event.pointerId);
+
+            this.tempoHoldTimeoutId = setTimeout(() => {
+                this.isTempoHolding = true;
+                this.suppressTempoClick = true;
+                this.updateTempo(this.tempo + step);
+                this.tempoHoldIntervalId = setInterval(() => {
+                    this.updateTempo(this.tempo + step);
+                }, 80);
+            }, 500);
+        });
+
+        const stopHold = (event) => {
+            if (button.hasPointerCapture?.(event.pointerId)) {
+                button.releasePointerCapture(event.pointerId);
+            }
+
+            const wasHolding = this.isTempoHolding;
+            this.clearTempoHold();
+            this.isTempoHolding = false;
+
+            if (!wasHolding || event.type !== 'pointerup') {
+                this.suppressTempoClick = false;
+            }
+        };
+
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => {
+            button.addEventListener(type, stopHold);
+        });
+    }
+
+    clearTempoHold() {
+        if (this.tempoHoldTimeoutId) {
+            clearTimeout(this.tempoHoldTimeoutId);
+            this.tempoHoldTimeoutId = null;
+        }
+
+        if (this.tempoHoldIntervalId) {
+            clearInterval(this.tempoHoldIntervalId);
+            this.tempoHoldIntervalId = null;
+        }
+
+        this.isTempoHolding = false;
+    }
+
+    updateVolume(value) {
+        const numericValue = Number.parseInt(value, 10);
+        if (Number.isNaN(numericValue)) {
+            const fallback = Math.round(this.volume * 100);
+            document.getElementById('volumeControl').value = fallback;
+            if (this.volumeValueInput) {
+                this.volumeValueInput.value = fallback.toString();
+            }
+            return;
+        }
+
+        const parsedValue = Math.min(Math.max(numericValue, 0), 100);
+        this.volume = parsedValue / 100;
+        this.clearActivePresetReference();
+        if (this.volumeSlider) {
+            this.volumeSlider.value = parsedValue;
+        } else {
+            const slider = document.getElementById('volumeControl');
+            if (slider) {
+                slider.value = parsedValue;
+            }
+        }
+        if (this.volumeValueInput) {
+            this.volumeValueInput.value = parsedValue.toString();
+        }
+
+        if (this.masterGain) {
+            const now = this.audioContext ? this.audioContext.currentTime : 0;
+            const target = !this.isPlaying && this.mutedWhileStopped ? 0 : this.volume;
+            try {
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setTargetAtTime(target, now, 0.01);
+            } catch (error) {
+                // ignore scheduling errors
+            }
+        }
+
+        if (!this.isRestoringSettings) {
+            this.saveSettings();
+        }
+    }
+
+    handleVolumeValueInput(event) {
+        const input = event.target;
+        if (!(input instanceof HTMLInputElement)) {
+            return;
+        }
+
+        let sanitized = input.value.replace(/[^0-9]/g, '');
+        if (sanitized.length > 3) {
+            sanitized = sanitized.slice(0, 3);
+        }
+
+        input.value = sanitized;
+    }
+
+    commitVolumeInput() {
+        if (!this.volumeValueInput) {
+            return;
+        }
+
+        const rawValue = this.volumeValueInput.value.trim();
+        if (rawValue === '') {
+            this.volumeValueInput.value = Math.round(this.volume * 100).toString();
+            return;
+        }
+
+        const parsed = Number.parseInt(rawValue, 10);
+        if (Number.isNaN(parsed)) {
+            this.volumeValueInput.value = Math.round(this.volume * 100).toString();
+            return;
+        }
+
+        this.updateVolume(parsed);
+    }
+
+    handleBeatTouch(event) {
+        if (event.touches && event.touches.length > 1) {
+            return;
+        }
+
+        const now = Date.now();
+        this.lastBeatTouchTime = now;
+        event.preventDefault();
+        this.tapTempo();
     }
 }
 
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    border: 0;
-}
-
-.beat-display {
-    font-size: 6rem;
-    font-weight: bold;
-    color: var(--primary);
-    margin-bottom: 0.5rem;
-    border: 2px dashed var(--primary);
-    border-radius: 1rem;
-    padding: 1rem;
-    cursor: pointer;
-    position: relative;
-    transition: background-color 0.1s;
-    -webkit-user-select: none;
-    user-select: none;
-    touch-action: manipulation;
-}
-
-.beat-display.flash {
-    background-color: var(--flash-color);
-    color: white;
-}
-
-.beat-display-hint {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin-bottom: 2rem;
-}
-
-.controls {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-.tempo-control {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.tempo-control button {
-    flex-shrink: 0;
-    -webkit-user-select: none;
-    user-select: none;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-    width: 3rem;
-    height: 3rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    border-radius: 0.75rem;
-}
-
-.tempo-control button i {
-    font-size: 1.1rem;
-}
-
-.volume-control {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    width: 100%;
-}
-
-.volume-label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    flex: 0 0 8.75rem;
-    max-width: 8.75rem;
-}
-
-.volume-control input[type="range"] {
-    flex: 1;
-}
-
-.volume-label-text {
-    font-weight: 500;
-}
-
-.volume-value-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.2rem;
-    padding: 0.15rem 0.5rem;
-    border-radius: 0.5rem;
-    background: var(--accent-soft);
-    color: var(--primary);
-    min-width: 4.5rem;
-    justify-content: flex-end;
-}
-
-.volume-value-input {
-    width: 2.8rem;
-    border: none;
-    background: transparent;
-    color: inherit;
-    font-weight: 600;
-    font-size: 0.95rem;
-    text-align: right;
-    -moz-appearance: textfield;
-    appearance: textfield;
-}
-
-.volume-value-input:focus {
-    outline: none;
-}
-
-.volume-value-input::-webkit-outer-spin-button,
-.volume-value-input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-
-.volume-value-suffix {
-    font-weight: 600;
-    letter-spacing: 0.02em;
-}
-
-.bpm-input-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0.75rem;
-    border: 2px solid var(--border);
-    border-radius: 0.65rem;
-    background: var(--container-bg);
-    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.07);
-    transition: border 0.2s ease, box-shadow 0.2s ease;
-}
-
-.bpm-input-wrapper:focus-within {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
-}
-
-.bpm-input {
-    width: 4.5rem;
-    padding: 0;
-    margin: 0;
-    font-size: 1.2rem;
-    border: none;
-    background: transparent;
-    text-align: right;
-    color: var(--text);
-}
-
-.bpm-input:focus {
-    outline: none;
-}
-
-.bpm-input::-webkit-outer-spin-button,
-.bpm-input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-
-.bpm-input[type="number"] {
-    -moz-appearance: textfield;
-    appearance: textfield;
-}
-
-.bpm-suffix {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    letter-spacing: 0.03em;
-}
-
-.time-sig {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: center;
-    align-items: center;
-}
-
-.time-sig select {
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    padding: 0.55rem 2.5rem 0.55rem 1rem;
-    font-size: 1rem;
-    font-weight: 600;
-    font-family: inherit;
-    border: 2px solid var(--border);
-    border-radius: 0.75rem;
-    background: var(--container-bg);
-    color: var(--text);
-    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
-    transition: border 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.9rem center;
-    background-size: 0.75rem;
-}
-
-.time-sig select:hover {
-    border-color: rgba(96, 165, 250, 0.6);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.18);
-}
-
-.time-sig select:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
-}
-
-.time-sig span {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.05rem;
-    font-weight: 600;
-    line-height: 1;
-    color: var(--text-secondary);
-    padding: 0.55rem 0.25rem;
-}
-
-button {
-    background: var(--primary);
-    color: white;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 0.5rem;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-button:hover {
-    background: var(--primary-hover);
-}
-#playButton,
-#tapButton {
-    width: 100%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.65rem;
-    font-weight: 600;
-}
-
-#playButton i {
-    font-size: 1rem;
-}
-
-footer {
-    margin-top: 0.5rem;
-    padding-top: 1rem;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.footer-lines {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    line-height: 1.5;
-}
-
-.footer-line {
-    margin: 0;
-}
-
-.footer-links {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex: 0 0 auto;
-}
-
-.link-text {
-    text-decoration: underline;
-    color: inherit;
-}
-
-.link-text:hover {
-    color: var(--primary);
-}
-
-input[type="range"] {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 100%;
-    height: 6px;
-    background: transparent;
-    cursor: pointer;
-}
-
-input[type="range"]:focus {
-    outline: none;
-}
-
-input[type="range"]:focus-visible {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent);
-    border-radius: 999px;
-}
-
-input[type="range"]::-webkit-slider-runnable-track {
-    height: 6px;
-    background: color-mix(in srgb, var(--primary) 32%, transparent);
-    border-radius: 999px;
-}
-
-input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--primary);
-    border: 2px solid var(--container-bg);
-    box-shadow: 0 2px 6px color-mix(in srgb, var(--primary) 18%, rgba(15, 23, 42, 0.35));
-    margin-top: -6px;
-    transition: transform 0.15s ease, background 0.2s ease;
-}
-
-input[type="range"]::-webkit-slider-thumb:hover {
-    transform: scale(1.05);
-}
-
-input[type="range"]::-webkit-slider-thumb:active {
-    transform: scale(1.1);
-    background: var(--primary-hover);
-}
-
-input[type="range"]::-moz-range-track {
-    height: 6px;
-    background: color-mix(in srgb, var(--primary) 25%, transparent);
-    border-radius: 999px;
-}
-
-input[type="range"]::-moz-range-progress {
-    height: 6px;
-    background: linear-gradient(90deg, var(--primary), var(--primary-hover));
-    border-radius: 999px;
-}
-
-input[type="range"]::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--primary);
-    border: 2px solid var(--container-bg);
-    box-shadow: 0 2px 6px color-mix(in srgb, var(--primary) 18%, rgba(15, 23, 42, 0.35));
-    transition: transform 0.15s ease, background 0.2s ease;
-}
-
-input[type="range"]::-moz-range-thumb:hover {
-    transform: scale(1.05);
-}
-
-input[type="range"]::-moz-range-thumb:active {
-    transform: scale(1.1);
-    background: var(--primary-hover);
-}
-
-
-.preset-panel,
-.settings-panel {
-    position: fixed;
-    inset: 0;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: opacity 0.28s ease;
-    z-index: 40;
-}
-
-.preset-panel.is-open,
-.settings-panel.is-open {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-}
-
-.preset-panel.is-closing,
-.settings-panel.is-closing {
-    visibility: visible;
-    pointer-events: none;
-}
-
-.preset-panel__backdrop,
-.settings-panel__backdrop {
-    position: absolute;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.42);
-    -webkit-backdrop-filter: blur(2px);
-    backdrop-filter: blur(2px);
-    opacity: 0;
-    transition: opacity 0.28s ease;
-}
-
-.preset-panel.is-open .preset-panel__backdrop,
-.settings-panel.is-open .settings-panel__backdrop {
-    opacity: 1;
-}
-
-.preset-panel.is-closing .preset-panel__backdrop,
-.settings-panel.is-closing .settings-panel__backdrop {
-    opacity: 0;
-}
-
-.preset-panel__content,
-.settings-panel__content {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: min(420px, 100%);
-    height: 100%;
-    background: var(--container-bg);
-    color: var(--text);
-    box-shadow: -12px 0 32px rgba(15, 23, 42, 0.12), 0 24px 48px -28px rgba(15, 23, 42, 0.32);
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    padding: 2rem 1.75rem 2.5rem;
-    transform: translateX(100%);
-    transition: transform 0.25s ease;
-    max-height: 100vh;
-    overflow: visible;
-}
-
-.preset-panel.is-open .preset-panel__content,
-.settings-panel.is-open .settings-panel__content {
-    transform: translateX(0);
-}
-
-.preset-panel.is-closing .preset-panel__content,
-.settings-panel.is-closing .settings-panel__content {
-    transform: translateX(100%);
-}
-
-.preset-panel__content::after,
-.settings-panel__content::after {
-    content: "";
-    position: absolute;
-    left: 1.75rem;
-    right: 1.75rem;
-    bottom: 1.4rem;
-    height: 2.25rem;
-    pointer-events: none;
-    border-radius: 999px;
-    box-shadow: 0 22px 34px -26px rgba(15, 23, 42, 0.35);
-    transform: translateY(70%);
-}
-
-.preset-panel__body,
-.settings-panel__body {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-    flex: 1 1 auto;
-    overflow-y: auto;
-    padding-right: 0.25rem;
-    padding-bottom: 2.5rem;
-}
-
-.preset-panel__header,
-.settings-panel__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1.25rem;
-}
-
-.preset-close,
-.settings-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 0.65rem;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
-}
-
-.preset-close:hover,
-.preset-close:focus-visible,
-.settings-close:hover,
-.settings-close:focus-visible {
-    border-color: var(--primary);
-    color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-    background: transparent;
-}
-
-.settings-panel__header-text {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-}
-
-.settings-panel__subtitle {
-    margin: 0;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    line-height: 1.45;
-}
-
-.settings-panel__tabs {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 0.5rem;
-    margin-bottom: 1.25rem;
-}
-
-.settings-tab {
-    border: 1px solid var(--border);
-    border-radius: 0.85rem;
-    background: var(--container-bg);
-    color: var(--text);
-    padding: 0.65rem 0.9rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.45rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, background-color 0.18s ease;
-}
-
-.settings-tab i {
-    font-size: 0.95rem;
-    color: var(--text-secondary);
-}
-
-.settings-tab:focus-visible {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-}
-
-.settings-tab--active {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: color-mix(in srgb, var(--accent-soft) 32%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
-}
-
-.settings-tab--active i {
-    color: var(--primary);
-}
-
-.settings-section {
-    display: none;
-}
-
-.settings-section.settings-section--active {
-    display: block;
-}
-
-.settings-card {
-    border: 1px solid var(--border);
-    border-radius: 1rem;
-    background: color-mix(in srgb, var(--container-bg) 80%, var(--accent-soft) 20%);
-    padding: 1.25rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-}
-
-.settings-card--stacked {
-    gap: 1.15rem;
-}
-
-.settings-card__title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--text);
-}
-
-.settings-card__subtitle {
-    margin: 0;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    line-height: 1.5;
-}
-
-.settings-radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.settings-radio {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 0.9rem;
-    padding: 0.85rem 1rem;
-    background: var(--container-bg);
-    cursor: pointer;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
-}
-
-.settings-radio input[type="radio"] {
-    width: 1.05rem;
-    height: 1.05rem;
-    margin-top: 0.2rem;
-    flex-shrink: 0;
-    accent-color: var(--primary);
-}
-
-.settings-radio__content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-}
-
-.settings-radio__title {
-    font-weight: 600;
-    color: var(--text);
-}
-
-.settings-radio__description {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
-
-.settings-radio input[type="radio"]:checked + .settings-radio__content .settings-radio__title {
-    color: var(--primary);
-}
-
-.settings-transfer {
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-}
-
-.settings-transfer__button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
-    border-radius: 0.75rem;
-    border: none;
-    background: var(--primary);
-    color: #fff;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-}
-
-.settings-transfer__button i {
-    font-size: 0.95rem;
-}
-
-.settings-transfer__button:hover,
-.settings-transfer__button:focus-visible {
-    background: var(--primary-hover);
-    outline: none;
-}
-
-.about-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-}
-
-.about-list li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    border-bottom: 1px dashed var(--border);
-    padding-bottom: 0.35rem;
-}
-
-.about-list li:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-}
-
-.about-list a {
-    font-weight: 600;
-}
-
-.custom-alert__body {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.custom-alert__extra {
-    border: 1px solid var(--border);
-    border-radius: 0.75rem;
-    padding: 0.75rem;
-    background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
-}
-
-.custom-alert__extra[hidden] {
-    display: none;
-}
-
-.alert-checkbox-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-}
-
-.alert-checkbox {
-    display: flex;
-    gap: 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 0.75rem;
-    padding: 0.65rem 0.85rem;
-    background: var(--container-bg);
-    cursor: pointer;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
-}
-
-.alert-checkbox input {
-    width: 1rem;
-    height: 1rem;
-    margin-top: 0.2rem;
-    flex-shrink: 0;
-    accent-color: var(--primary);
-}
-
-.alert-checkbox__content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-}
-
-.alert-checkbox__title {
-    font-weight: 600;
-    color: var(--text);
-}
-
-.alert-checkbox__description {
-    margin: 0;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-}
-
-.alert-checkbox input:disabled + .alert-checkbox__content .alert-checkbox__title {
-    color: var(--text-secondary);
-}
-
-.alert-checkbox input:disabled + .alert-checkbox__content .alert-checkbox__description {
-    color: rgba(107, 114, 128, 0.6);
-}
-
-.theme-panel__sections {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-}
-
-.theme-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.theme-panel__custom {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    border: 1px dashed var(--primary);
-    border-radius: 1rem;
-    padding: 1.25rem;
-    background: color-mix(in srgb, var(--accent-soft) 55%, transparent 45%);
-}
-
-.theme-panel__custom-header {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-}
-
-.theme-panel__custom-title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--text);
-}
-
-.theme-panel__custom-subtitle {
-    margin: 0;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
-
-.custom-theme-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.custom-theme-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.custom-theme-field label {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--text);
-}
-
-.custom-theme-inputs {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.65rem;
-    align-items: center;
-}
-
-.custom-theme-inputs--with-action {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-}
-
-.custom-theme-inputs input[type="color"] {
-    width: 48px;
-    height: 48px;
-    border: 1px solid var(--border);
-    border-radius: 0.75rem;
-    padding: 0;
-    background: var(--container-bg);
-    cursor: pointer;
-    box-shadow: inset 0 0 0 2px rgba(15, 23, 42, 0.08);
-}
-
-.custom-theme-inputs input[type="text"] {
-    width: 100%;
-    border: 1px solid var(--border);
-    border-radius: 0.75rem;
-    padding: 0.75rem 1rem;
-    font-size: 0.95rem;
-    background: var(--container-bg);
-    color: var(--text);
-}
-
-.custom-theme-field-reset {
-    width: 40px;
-    height: 40px;
-    border-radius: 0.75rem;
-    border: 1px solid transparent;
-    background: transparent;
-    color: var(--text-secondary);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: color 0.18s ease, border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-.custom-theme-field-reset.is-active {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 18%, transparent);
-}
-
-.custom-theme-field-reset:hover,
-.custom-theme-field-reset:focus-visible {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 14%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-    outline: none;
-}
-
-.custom-theme-field-reset[disabled] {
-    opacity: 0.45;
-    cursor: default;
-    border-color: transparent;
-    background: transparent;
-    box-shadow: none;
-}
-
-.custom-theme-field-reset[disabled]:hover,
-.custom-theme-field-reset[disabled]:focus-visible {
-    color: var(--text-secondary);
-    background: transparent;
-    border-color: transparent;
-    box-shadow: none;
-}
-
-.custom-theme-inputs input[type="text"]:focus-visible {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-}
-
-.custom-theme-hint {
-    margin: 0;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-}
-
-.custom-theme-hint--advanced {
-    margin-bottom: 0.75rem;
-}
-
-.custom-theme-actions {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-
-.theme-io {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 0.75rem;
-    margin-top: 1.25rem;
-}
-
-.theme-io__button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
-    border-radius: 0.75rem;
-    border: 1px solid var(--border);
-    background: var(--container-bg);
-    color: var(--text);
-    font-weight: 600;
-    cursor: pointer;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, background-color 0.18s ease;
-}
-
-.theme-io__button i {
-    font-size: 0.95rem;
-    color: var(--primary);
-}
-
-.theme-io__button:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-}
-
-.theme-io__button:focus-visible {
-    outline: none;
-    border-color: var(--primary);
-    color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
-}
-
-.custom-theme-field-reset--accent {
-    width: 48px;
-    height: 48px;
-}
-
-.custom-theme-error {
-    margin: 0;
-    font-size: 0.85rem;
-    color: #ef4444;
-}
-
-.custom-theme-title-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.custom-theme-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.25rem 0.6rem;
-    border-radius: 0.75rem;
-    background: var(--accent-soft);
-    color: var(--primary);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    gap: 0.35rem;
-}
-
-.custom-theme-badge i {
-    font-size: 0.7rem;
-}
-
-.custom-theme-form fieldset {
-    border: 0;
-    padding: 0;
-    margin: 0;
-}
-
-.custom-theme-advanced {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-}
-
-.custom-theme-advanced-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    border-radius: 0.75rem;
-    border: 1px solid var(--border);
-    background: var(--container-bg);
-    color: var(--text);
-    cursor: pointer;
-    width: 100%;
-    text-align: left;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, background-color 0.18s ease, border-radius 0.2s ease;
-}
-
-.custom-theme-advanced-toggle:hover {
-    border-color: var(--border);
-    background: var(--container-bg);
-    box-shadow: none;
-}
-
-.custom-theme-advanced-toggle:focus-visible {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-}
-
-.custom-theme-advanced-text {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.15rem;
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.custom-theme-advanced-toggle i {
-    margin-left: auto;
-    font-size: 0.95rem;
-    transition: transform 0.2s ease, color 0.2s ease;
-    color: var(--text-secondary);
-}
-
-.custom-theme--advanced-open .custom-theme-advanced-toggle i {
-    transform: rotate(180deg);
-    color: var(--primary);
-}
-
-.custom-theme--advanced-open .custom-theme-advanced-toggle {
-    border-color: var(--primary);
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    border-bottom-color: transparent;
-    background: color-mix(in srgb, var(--accent-soft) 35%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-}
-
-.custom-theme-advanced-label {
-    font-weight: 600;
-    font-size: 0.95rem;
-}
-
-.custom-theme-advanced-subtitle {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
-
-
-.custom-theme-advanced-fields {
-    border: 1px solid var(--border);
-    border-top: none;
-    border-radius: 0 0 0.75rem 0.75rem;
-    background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
-    display: grid;
-    grid-template-rows: 0fr;
-    transition: grid-template-rows 0.25s ease;
-    padding: 0;
-    overflow: hidden;
-    margin-top: -1px;
-}
-
-.custom-theme-advanced-fields.is-open {
-    grid-template-rows: 1fr;
-}
-
-.custom-theme-advanced-fields-inner {
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    padding: 0 1rem;
-    transition: padding 0.25s ease;
-}
-
-.custom-theme-advanced-fields.is-open .custom-theme-advanced-fields-inner {
-    padding: 1rem;
-}
-
-.custom-theme-advanced-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.85rem;
-}
-
-.custom-theme-field--compact label {
-    font-size: 0.85rem;
-}
-
-.custom-theme-field--compact .custom-theme-inputs input[type="text"] {
-    padding: 0.65rem 0.9rem;
-    font-size: 0.85rem;
-}
-
-.custom-theme-field--compact .custom-theme-inputs input[type="color"] {
-    width: 42px;
-    height: 42px;
-}
-
-.custom-theme-field--compact .custom-theme-field-reset {
-    width: 36px;
-    height: 36px;
-    border-radius: 0.65rem;
-}
-
-.theme-panel__custom.is-active {
-    border-style: solid;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 22%, transparent);
-}
-
-.theme-section__title {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.theme-section__description {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
-
-.theme-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 0.75rem;
-}
-
-.theme-item {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: stretch;
-    border-radius: 0.9rem;
-    border: 1px solid var(--border);
-    background: var(--container-bg);
-    padding: 0.9rem 1rem;
-    gap: 0.75rem;
-    text-align: left;
-    cursor: pointer;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, transform 0.2s ease;
-}
-
-.theme-item:hover,
-.theme-item:focus-visible {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-    background: color-mix(in srgb, var(--accent-soft) 32%, transparent);
-}
-
-.theme-item--active {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
-    background: color-mix(in srgb, var(--accent-soft) 34%, transparent);
-}
-
-.theme-item--system {
-    grid-column: span 2;
-}
-
-.theme-item__swatches {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-}
-
-.theme-item__swatch {
-    flex: 1 1 0;
-    min-width: 0;
-    height: 1.65rem;
-    border-radius: 0.55rem;
-    background: var(--swatch-color, var(--primary));
-    position: relative;
-    overflow: hidden;
-    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
-}
-
-.theme-item__swatch::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(155deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
-    opacity: 0.85;
-    pointer-events: none;
-}
-
-.theme-item__info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-}
-
-.theme-item__name {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text);
-}
-
-.theme-item__description {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
-
-.theme-item__state {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
-    color: var(--primary);
-    font-size: 0.85rem;
-    gap: 0.3rem;
-    visibility: hidden;
-}
-
-.theme-item--active .theme-item__state {
-    visibility: visible;
-}
-
-.theme-item__state i {
-    font-size: 0.85rem;
-}
-
-.theme-item__state-text {
-    font-weight: 600;
-    font-size: 0.8rem;
-}
-
-.preset-panel__controls {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-}
-
-.preset-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    padding: 0.9rem 1rem;
-    border-radius: 0.85rem;
-    border: 1px solid var(--border);
-    background: color-mix(in srgb, var(--accent-soft) 28%, transparent);
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
-    position: relative;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
-}
-
-.preset-card:hover,
-.preset-card:focus-within {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-    background: color-mix(in srgb, var(--accent-soft) 38%, transparent);
-}
-
-.preset-card__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.preset-card__info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    flex: 1 1 auto;
-}
-
-.preset-card__meta {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    flex-wrap: wrap;
-}
-
-.preset-card--empty {
-    background: color-mix(in srgb, var(--accent-soft) 18%, transparent);
-}
-
-.preset-card--empty .preset-card__meta {
-    color: var(--text-secondary);
-}
-
-.preset-card__meta--single {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.35rem;
-}
-
-.preset-card__title {
-    font-size: 1.05rem;
-    font-weight: 600;
-}
-
-.preset-card__play {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 0.65rem;
-    border: 1px solid var(--border);
-    background: var(--container-bg);
-    color: var(--primary);
-    cursor: pointer;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
-}
-
-.preset-card__play:hover,
-.preset-card__play:focus-visible {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-    background: var(--container-bg);
-}
-
-.preset-actions {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0;
-}
-
-.preset-action-button {
-    flex: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 0.75rem;
-    width: 100%;
-    text-align: left;
-    border: 1px solid var(--border);
-    border-radius: 0.75rem;
-    background: var(--container-bg);
-    color: var(--primary);
-    font-weight: 600;
-    padding: 0.75rem 1rem;
-    cursor: pointer;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, background-color 0.18s ease, border-radius 0.25s ease, padding 0.25s ease;
-}
-
-.preset-action-button i {
-    font-size: 0.95rem;
-}
-
-.preset-action-button__label {
-    flex: 1 1 auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
-}
-
-.preset-action-button__chevron {
-    margin-left: auto;
-    font-size: 0.95rem;
-    transition: transform 0.2s ease, color 0.2s ease;
-    color: var(--text-secondary);
-}
-
-.preset-action-button--with-chevron[aria-expanded="true"] .preset-action-button__chevron,
-.preset-action-button--with-chevron.is-expanded .preset-action-button__chevron {
-    transform: rotate(180deg);
-    color: var(--primary);
-}
-
-#presetAddCustomToggle i {
-    transition: transform 0.25s ease;
-}
-
-#presetAddCustomToggle span {
-    transition: transform 0.25s ease;
-}
-
-#presetAddCustomToggle[aria-expanded="true"] i {
-    transform: rotate(45deg);
-}
-
-#presetAddCustomToggle[aria-expanded="true"] span {
-    transform: translateX(4px);
-}
-
-.preset-action-button:hover {
-    border-color: var(--border);
-    color: inherit;
-    background: var(--container-bg);
-    box-shadow: none;
-}
-
-.preset-action-button:focus-visible {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: color-mix(in srgb, var(--accent-soft) 30%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-}
-
-.preset-action-button[aria-expanded="true"] {
-    background: color-mix(in srgb, var(--accent-soft) 25%, transparent);
-    color: var(--text);
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    border-bottom-color: transparent;
-}
-
-.preset-action-button[aria-expanded="true"]:hover {
-    background: color-mix(in srgb, var(--accent-soft) 25%, transparent);
-    color: var(--text);
-    border-color: var(--border);
-}
-
-.preset-action-button[aria-expanded="true"]:focus-visible {
-    background: color-mix(in srgb, var(--accent-soft) 25%, transparent);
-    color: var(--text);
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-}
-
-.preset-form {
-    display: grid;
-    gap: 1rem;
-    border: 1px solid var(--border);
-    border-top: none;
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
-    border-bottom-left-radius: 0.85rem;
-    border-bottom-right-radius: 0.85rem;
-    padding: 0;
-    background: color-mix(in srgb, var(--accent-soft) 25%, transparent);
-    max-height: 0;
-    opacity: 0;
-    overflow: hidden;
-    visibility: hidden;
-    transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.35s ease, visibility 0s linear 0.35s;
-}
-
-.preset-form.preset-form--animating {
-    transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.35s ease, visibility 0s;
-}
-
-.preset-form.preset-form--visible {
-    max-height: 600px;
-    opacity: 1;
-    padding: 1rem;
-    visibility: visible;
-}
-
-.preset-form-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.25rem;
-    font-weight: 600;
-    gap: 1rem;
-}
-
-.io-group {
-    margin-top: 1.25rem;
-}
-
-.io-panel {
-    border: 1px solid var(--border);
-    border-top: none;
-    border-bottom-left-radius: 0.85rem;
-    border-bottom-right-radius: 0.85rem;
-    background: color-mix(in srgb, var(--accent-soft) 22%, transparent);
-    margin-top: -1px;
-    padding: 0;
-    max-height: 0;
-    opacity: 0;
-    overflow: hidden;
-    display: grid;
-    gap: 1rem;
-    transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.35s ease;
-}
-
-.io-panel.is-open {
-    max-height: 520px;
-    opacity: 1;
-    padding: 1rem 1.1rem 1.1rem;
-}
-
-.io-panel__actions {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-    width: 100%;
-}
-
-.io-panel__export-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    width: 100%;
-    padding: 0.65rem 1.2rem;
-    border-radius: 0.65rem;
-    border: none;
-    background: var(--primary);
-    color: white;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-}
-
-.io-panel__export-button i {
-    font-size: 0.95rem;
-}
-
-.io-panel__export-button:hover,
-.io-panel__export-button:focus-visible {
-    background: var(--primary-hover);
-    outline: none;
-}
-
-.io-dropzone {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    border: 1.5px dashed var(--border);
-    border-radius: 0.9rem;
-    background: color-mix(in srgb, var(--container-bg) 85%, var(--accent-soft) 15%);
-    padding: 1rem 1.25rem;
-    cursor: pointer;
-    transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.io-dropzone:hover {
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--accent-soft) 35%, transparent);
-}
-
-.io-dropzone:focus-visible {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-}
-
-.io-dropzone.is-dragover {
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 16%, transparent);
-    transform: translateY(-1px);
-}
-
-.io-dropzone__icon {
-    width: 3rem;
-    height: 3rem;
-    border-radius: 0.85rem;
-    background: color-mix(in srgb, var(--primary) 16%, transparent);
-    color: var(--primary);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 30%, transparent);
-}
-
-.io-dropzone__icon i {
-    font-size: 1.15rem;
-}
-
-.io-dropzone__content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    align-items: flex-start;
-}
-
-.io-dropzone__content strong {
-    font-size: 1rem;
-    font-weight: 600;
-}
-
-.io-dropzone__separator {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-secondary);
-}
-
-.io-dropzone__browse {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.4rem 0.75rem;
-    border-radius: 0.65rem;
-    border: 1px solid var(--primary);
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-    color: var(--primary);
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
-}
-
-.io-dropzone__browse:hover,
-.io-dropzone__browse:focus-visible {
-    background: var(--primary);
-    color: white;
-}
-
-.io-dropzone__hint {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
-
-.theme-panel__custom .io-group {
-    margin-top: 1.5rem;
-}
-
-@media (max-width: 640px) {
-    .io-panel.is-open {
-        padding: 0.85rem;
-    }
-
-    .io-dropzone {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.75rem;
-    }
-
-    .io-dropzone__icon {
-        width: 2.75rem;
-        height: 2.75rem;
-        border-radius: 0.75rem;
-    }
-}
-
-.preset-form-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem 0.85rem;
-    align-items: start;
-}
-
-.preset-form-grid label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-.preset-form-grid input {
-    width: 100%;
-}
-
-.preset-form-label {
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-.preset-form-time-signature .preset-form-label {
-    margin-bottom: 0;
-}
-
-.preset-form-time-signature-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: nowrap;
-    width: 100%;
-    min-width: 0;
-}
-
-.preset-form-time-signature-controls span {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.05rem;
-    font-weight: 600;
-    line-height: 1;
-    color: var(--text-secondary);
-    padding: 0.55rem 0.25rem;
-}
-
-.preset-form-time-signature-controls .preset-select {
-    flex: 0 0 auto;
-}
-
-@media (max-width: 560px) {
-    .preset-form-time-signature-controls {
-        flex-wrap: wrap;
-        gap: 0.5rem 0.75rem;
-    }
-
-    .preset-use-current-toggle {
-        width: 100%;
-        justify-content: flex-start;
-        margin-left: 0;
-    }
-}
-
-
-.preset-select {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-}
-
-.preset-select select {
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    padding: 0.55rem 2.5rem 0.55rem 1rem;
-    font-size: 1rem;
-    font-weight: 600;
-    font-family: inherit;
-    border: 2px solid var(--border);
-    border-radius: 0.75rem;
-    background: var(--container-bg);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.9rem center;
-    background-size: 0.75rem;
-    color: var(--text);
-    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
-    transition: border 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
-    min-width: 0;
-}
-
-.preset-select select:hover {
-    border-color: rgba(96, 165, 250, 0.6);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.18);
-}
-
-.preset-select select:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
-}
-
-.preset-use-current-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin-left: auto;
-    font-weight: 600;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding-top: 0;
-    padding-bottom: 0.1rem;
-    white-space: nowrap;
-}
-
-.preset-use-current-toggle input {
-    width: 1.05rem;
-    height: 1.05rem;
-    accent-color: var(--primary);
-}
-
-.preset-form-row input {
-    border-radius: 0.65rem;
-    border: 1px solid var(--border);
-    padding: 0.55rem 0.85rem;
-    font-size: 0.95rem;
-    font-weight: 600;
-    background: var(--container-bg);
-    color: var(--text);
-    box-shadow: none;
-    transition: border 0.18s ease, box-shadow 0.18s ease;
-}
-
-.preset-form-row input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-}
-
-.preset-form-row input:disabled,
-.preset-form .preset-select select:disabled {
-    background-color: rgba(148, 163, 184, 0.15);
-    border-color: rgba(148, 163, 184, 0.4);
-    color: var(--text-secondary);
-    cursor: not-allowed;
-    box-shadow: none;
-}
-
-.preset-form-row input:disabled::-webkit-inner-spin-button,
-.preset-form-row input:disabled::-webkit-outer-spin-button {
-    opacity: 0.4;
-}
-
-.preset-form-row input:disabled::-webkit-input-placeholder {
-    color: var(--text-secondary);
-}
-
-.preset-form-row input:disabled::placeholder {
-    color: var(--text-secondary);
-}
-
-.preset-form-grid {
-    gap: 0.75rem;
-}
-
-.preset-form-grid label {
-    flex: 1;
-}
-
-.preset-form-actions {
-    display: flex;
-    gap: 0.75rem;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-}
-
-.preset-save-button {
-    padding: 0.65rem 1.2rem;
-    border-radius: 0.65rem;
-    border: none;
-    font-weight: 600;
-    cursor: pointer;
-    background: var(--primary);
-    color: white;
-    width: 100%;
-}
-
-.preset-save-button:hover {
-    background: var(--primary-hover);
-}
-
-.preset-sort {
-    display: flex;
-    flex-direction: column;
-    gap: 0.45rem;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-}
-
-.preset-sort-controls {
-    display: flex;
-    gap: 0.65rem;
-    align-items: stretch;
-}
-
-.preset-sort select {
-    flex: 1;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    border-radius: 0.7rem;
-    border: 2px solid var(--border);
-    padding: 0.55rem 2.5rem 0.55rem 1rem;
-    background: var(--container-bg);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.9rem center;
-    background-size: 0.75rem;
-    color: var(--text);
-    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1);
-    font-weight: 600;
-    font-size: 1rem;
-    font-family: inherit;
-    transition: border 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
-}
-
-.preset-sort select:hover {
-    border-color: rgba(96, 165, 250, 0.6);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.18);
-}
-
-.preset-sort select:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
-}
-
-.preset-group-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    border: 1px solid var(--border);
-    padding: 0.5rem 0.8rem;
-    border-radius: 0.65rem;
-    background: color-mix(in srgb, var(--accent-soft) 40%, transparent);
-    color: var(--text);
-    cursor: pointer;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
-    align-self: stretch;
-}
-
-.preset-group-toggle input {
-    accent-color: var(--primary);
-}
-
-.preset-group-toggle span {
-    font-weight: 600;
-    color: var(--text-secondary);
-    transition: color 0.18s ease;
-}
-
-.preset-group-toggle:hover,
-.preset-group-toggle:focus-within {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
-}
-
-.preset-group-toggle input:checked + span {
-    color: var(--primary);
-}
-
-.preset-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-    flex: 1 1 auto;
-}
-
-.preset-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-}
-
-.preset-section__title {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.preset-item {
-    border: 1px solid var(--border);
-    border-radius: 0.85rem;
-    background: var(--container-bg);
-    padding: 0.8rem 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    box-shadow: none;
-    transition: border-color 0.18s ease, background-color 0.18s ease;
-}
-
-.preset-item:hover,
-.preset-item:focus-within {
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--accent-soft) 38%, transparent);
-}
-
-.preset-item__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-}
-
-.preset-item__title {
-    font-size: 1rem;
-    font-weight: 600;
-}
-
-.preset-item__meta {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    flex-wrap: wrap;
-}
-
-.preset-item__actions {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
-.preset-item__button {
-    flex: 1 1 120px;
-    border-radius: 0.65rem;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text);
-    font-weight: 600;
-    padding: 0.45rem 0.75rem;
-    cursor: pointer;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
-}
-
-.preset-item__button:hover,
-.preset-item__button:focus-visible {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-    background: transparent;
-}
-
-.preset-item__button--danger {
-    border-color: rgba(248, 113, 113, 0.4);
-    color: #b91c1c;
-}
-
-.preset-item__button--danger:hover,
-.preset-item__button--danger:focus-visible {
-    border-color: rgba(220, 38, 38, 0.65);
-    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.25);
-}
-
-.preset-item__button--primary {
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-.preset-item__button--primary:hover,
-.preset-item__button--primary:focus-visible {
-    background: transparent;
-}
-
-.preset-item__order-controls {
-    display: inline-flex;
-    gap: 0.35rem;
-}
-
-.preset-item__order-button {
-    width: 2rem;
-    height: 2rem;
-    border-radius: 0.5rem;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: border-color 0.18s ease, color 0.18s ease;
-}
-
-.preset-item__order-button:hover,
-.preset-item__order-button:focus-visible {
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-.preset-empty {
-    font-size: 0.95rem;
-    color: var(--text-secondary);
-    text-align: center;
-    border: 1px dashed var(--border);
-    border-radius: 0.85rem;
-    padding: 1.25rem;
-}
-
-.custom-alert {
-    position: fixed;
-    inset: 0;
-    padding: 1rem;
-    z-index: 50;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: opacity 0.25s ease, visibility 0.25s ease;
-}
-
-.custom-alert.is-open {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-}
-
-.custom-alert__backdrop {
-    position: absolute;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.5);
-    -webkit-backdrop-filter: blur(3px);
-    backdrop-filter: blur(3px);
-}
-
-.custom-alert__content {
-    position: relative;
-    background: var(--container-bg);
-    border-radius: 1rem;
-    padding: 1.5rem;
-    max-width: 420px;
-    width: calc(100% - 2rem);
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
-    transform: scale(0.95);
-    transition: transform 0.25s ease;
-}
-
-.custom-alert.is-open .custom-alert__content {
-    transform: scale(1);
-}
-
-.custom-alert__title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--text);
-    margin-bottom: 0.75rem;
-}
-
-.custom-alert__message {
-    font-size: 0.95rem;
-    color: var(--text-secondary);
-    line-height: 1.5;
-    margin-bottom: 1.5rem;
-}
-
-.custom-alert__actions {
-    display: flex;
-    gap: 0.75rem;
-    justify-content: flex-end;
-}
-
-.custom-alert__button {
-    padding: 0.65rem 1.2rem;
-    border-radius: 0.65rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.18s ease;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text);
-}
-
-.custom-alert__button:hover,
-.custom-alert__button:focus-visible {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: transparent;
-}
-
-.custom-alert__button--primary {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
-.custom-alert__button--primary:hover,
-.custom-alert__button--primary:focus-visible {
-    background: var(--primary);
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
-    color: white;
-}
-
-.custom-alert__button--danger {
-    background: transparent;
-    color: #dc2626;
-    border-color: rgba(220, 38, 38, 0.7);
-}
-
-.custom-alert__button--danger:hover,
-.custom-alert__button--danger:focus-visible {
-    border-color: #dc2626;
-    color: #dc2626;
-    box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.25);
-    background: transparent;
-}
-
-.preset-panel__body.is-dragover,
-.theme-panel__body.is-dragover,
-#customThemeSection.is-dragover {
-    position: relative;
-    outline: 2px dashed var(--primary);
-    outline-offset: 6px;
-}
-
-.preset-panel__body.is-dragover::after,
-.theme-panel__body.is-dragover::after,
-#customThemeSection.is-dragover::after {
-    content: "Drop JSON to import";
-    position: absolute;
-    inset: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 1rem;
-    background: rgba(59, 130, 246, 0.08);
-    color: var(--primary);
-    font-weight: 600;
-    pointer-events: none;
-}
-
-@media (max-width: 720px) {
-    .preset-panel__content,
-    .theme-panel__content,
-    .settings-panel__content {
-        width: 100%;
-        padding: 1.75rem 1.25rem 2.25rem;
-    }
-
-    .preset-actions {
-        flex-direction: column;
-    }
-
-    .preset-action-button {
-        width: 100%;
-    }
-
-    .preset-io,
-    .theme-io {
-        grid-template-columns: 1fr;
-    }
-
-    .preset-item__actions {
-        justify-content: flex-start;
-    }
-
-    .preset-item__button {
-        flex: 0 1 auto;
-    }
-
-}
-
-@media (max-width: 600px) {
-    .header-actions {
-        gap: 0.5rem;
-    }
-
-    .preset-panel__content,
-    .theme-panel__content,
-    .settings-panel__content {
-        border-radius: 0;
-        box-shadow: none;
-        bottom: 0;
-        top: auto;
-        height: 100%;
-        width: 100%;
-        right: 0;
-        left: 0;
-        transform: translateY(100%);
-        padding-top: calc(1.5rem + env(safe-area-inset-top));
-        padding-bottom: calc(2.5rem + env(safe-area-inset-bottom));
-    }
-
-    .preset-panel__body,
-    .theme-panel__body,
-    .settings-panel__body {
-        padding-right: 0;
-    }
-
-    .preset-panel.is-open .preset-panel__content,
-    .theme-panel.is-open .theme-panel__content,
-    .settings-panel.is-open .settings-panel__content {
-        transform: translateY(0);
-    }
-
-    .preset-panel.is-closing .preset-panel__content,
-    .theme-panel.is-closing .theme-panel__content,
-    .settings-panel.is-closing .settings-panel__content {
-        transform: translateY(100%);
-    }
-}
-
-@media (max-width: 600px) {
-    body {
-        background: var(--container-bg);
-        padding: 0;
-    }
-
-    .container {
-        max-width: none;
-        min-height: 100vh;
-        border-radius: 0;
-        box-shadow: none;
-        padding: 2rem 1.5rem 2.5rem;
-    }
-
-    .header-container {
-        width: 100%;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 1.5rem;
-    }
-
-    .brand {
-        justify-content: flex-start;
-    }
-
-    .brand header {
-        width: 100%;
-    }
-
-    .brand-title-row {
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-
-    .theme-selector {
-        align-self: flex-start;
-    }
-
-    .beat-display {
-        font-size: 4.5rem;
-    }
-
-    .controls {
-        gap: 1rem;
-    }
-
-    footer {
-        flex-direction: column;
-        align-items: stretch;
-        text-align: center;
-        gap: 1rem;
-    }
-
-    .footer-links {
-        justify-content: center;
-        width: 100%;
-        gap: 0.75rem;
-    }
-
-    .footer-lines {
-        width: 100%;
-    }
-
-    .volume-label {
-        flex: 0 0 7.5rem;
-        max-width: 7.5rem;
-    }
-}
+window.metronome = new Metronome();
